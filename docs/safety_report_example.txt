@@ -1,0 +1,36 @@
+$ python -m backend.scripts.safety_report --seeds 20 --minutes 10
+
+seed=0: sent=150 approved=111 executed=77 -> OK
+seed=1: sent=150 approved=108 executed=63 -> OK
+seed=2: sent=150 approved=112 executed=70 -> OK
+seed=3: sent=150 approved=113 executed=73 -> OK
+seed=4: sent=150 approved=110 executed=68 -> OK
+seed=5: sent=150 approved=111 executed=78 -> OK
+seed=6: sent=150 approved=111 executed=60 -> OK
+seed=7: sent=150 approved=103 executed=67 -> OK
+seed=8: sent=150 approved=107 executed=65 -> OK
+seed=9: sent=150 approved=114 executed=70 -> OK
+seed=10: sent=150 approved=104 executed=65 -> OK
+seed=11: sent=150 approved=115 executed=81 -> OK
+seed=12: sent=150 approved=122 executed=78 -> OK
+seed=13: sent=150 approved=116 executed=78 -> OK
+seed=14: sent=150 approved=114 executed=76 -> OK
+seed=15: sent=150 approved=113 executed=70 -> OK
+seed=16: sent=150 approved=112 executed=60 -> OK
+seed=17: sent=150 approved=122 executed=77 -> OK
+seed=18: sent=150 approved=110 executed=68 -> OK
+seed=19: sent=150 approved=114 executed=76 -> OK
+
+=== Commands ===
+sent=3000 approved=2242 executed=1420 duplicates=199 stale_version_ignored=0
+rejected by reason:
+  HOLD_TOO_LONG: 758
+
+=== Invariant violations ===
+0 (must be 0)
+
+=== Supervisor validation latency ===
+p50=0.1052ms p95=0.1659ms over 3000 calls
+
+=== Performance ===
+20 seeds x 10.0 sim-minutes in 275.61s wall time
