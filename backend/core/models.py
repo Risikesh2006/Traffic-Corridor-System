@@ -96,7 +96,7 @@ class IncidentType(StrEnum):
 
 
 def build_idempotency_key(plan_version: int, intersection_id: str, seq: int) -> str:
-    """Canonical idempotency key format (PRD §9/§10.6 FR-COR-05): v{plan_version}:{intersection_id}:{seq:04d}."""
+    """Canonical idempotency key (PRD §9/§10.6 FR-COR-05): "v{plan_version}:{id}:{seq:04d}"."""
     return f"v{plan_version}:{intersection_id}:{seq:04d}"
 
 
@@ -214,7 +214,7 @@ class City(BaseModel):
 
     def distance_m(self, a: str, b: str) -> float:
         node_a, node_b = self.intersection(a), self.intersection(b)
-        return ((node_a.x - node_b.x) ** 2 + (node_a.y - node_b.y) ** 2) ** 0.5
+        return float(((node_a.x - node_b.x) ** 2 + (node_a.y - node_b.y) ** 2) ** 0.5)
 
 
 class SensorReading(BaseModel):

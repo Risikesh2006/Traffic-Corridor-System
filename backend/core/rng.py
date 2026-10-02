@@ -26,5 +26,5 @@ class RngFactory:
         return self._streams[name]
 
     def _derive_seed(self, name: str) -> int:
-        digest = hashlib.sha256(f"{self.seed}:{name}".encode("utf-8")).digest()
+        digest = hashlib.sha256(f"{self.seed}:{name}".encode()).digest()
         return int.from_bytes(digest[:8], byteorder="big", signed=False)

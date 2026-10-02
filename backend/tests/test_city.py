@@ -74,7 +74,9 @@ def test_ambulance_entry_is_a6(settings: Settings) -> None:
 # --- Deliberately broken fixtures ---
 
 
-def test_duplicate_intersection_id_rejected(tmp_path: Path, raw_city: dict, settings: Settings) -> None:
+def test_duplicate_intersection_id_rejected(
+    tmp_path: Path, raw_city: dict, settings: Settings
+) -> None:
     broken = copy.deepcopy(raw_city)
     broken["intersections"].append(broken["intersections"][0])
     path = _write(tmp_path, broken)

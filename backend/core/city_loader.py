@@ -10,11 +10,12 @@ from __future__ import annotations
 import json
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
 from core.config import Settings
-from core.models import City, ConflictMatrix, Direction, Hospital, Intersection, RoadSegment
+from core.models import City, Direction, Hospital, Intersection, RoadSegment
 
 
 class CityValidationError(Exception):
@@ -85,7 +86,7 @@ def _validate_segments_reference_known_nodes(city: City) -> None:
             )
 
 
-def _validate_conflict_matrices(raw_intersections: list[dict]) -> None:
+def _validate_conflict_matrices(raw_intersections: list[dict[str, Any]]) -> None:
     """Checks the *authored* conflict pairs are explicitly symmetric and
     contain no self-conflicts. (`ConflictMatrix.conflicts()` itself behaves
     symmetrically regardless, but we require the config to spell both
@@ -201,17 +202,17 @@ def _validate_timings_against_settings(city: City, settings: Settings) -> None:
                     f"{settings.all_red_ms}"
                 )
         for entry in node.default_plan:
-            phase = next((p for p in node.phases if p.id == entry.phase_id), None)
-            if phase is None:
+            matching_phase = next((p for p in node.phases if p.id == entry.phase_id), None)
+            if matching_phase is None:
                 raise CityValidationError(
                     f"intersection {node.id}: default_plan references unknown "
                     f"phase '{entry.phase_id}'"
                 )
-            if entry.green_ms < phase.min_green_ms:
+            if entry.green_ms < matching_phase.min_green_ms:
                 raise CityValidationError(
                     f"intersection {node.id}: default_plan green_ms {entry.green_ms} "
                     f"for phase {entry.phase_id} is shorter than its min_green_ms "
-                    f"{phase.min_green_ms}"
+                    f"{matching_phase.min_green_ms}"
                 )
 
 

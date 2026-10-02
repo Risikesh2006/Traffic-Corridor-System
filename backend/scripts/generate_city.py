@@ -50,6 +50,11 @@ def node_id(col: str, row: int) -> str:
     return f"{col}{row}"
 
 
+def build_approach(col: str, row: int, direction: str) -> dict:
+    nid = node_id(col, row)
+    return {"id": f"{nid}-{direction}", "intersection_id": nid, "direction": direction, "lanes": 2}
+
+
 def kmh_to_mps(kmh: float) -> float:
     return kmh / 3.6
 
@@ -114,21 +119,13 @@ def build_intersections(settings: Settings) -> list[dict]:
             approaches = []
             # North approach exists if there is a node to the north (row - 1).
             if row > min(ROWS):
-                approaches.append(
-                    {"id": f"{col}{row}-N", "intersection_id": node_id(col, row), "direction": "N", "lanes": 2}
-                )
+                approaches.append(build_approach(col, row, "N"))
             if row < max(ROWS):
-                approaches.append(
-                    {"id": f"{col}{row}-S", "intersection_id": node_id(col, row), "direction": "S", "lanes": 2}
-                )
+                approaches.append(build_approach(col, row, "S"))
             if col_index(col) > 0:
-                approaches.append(
-                    {"id": f"{col}{row}-W", "intersection_id": node_id(col, row), "direction": "W", "lanes": 2}
-                )
+                approaches.append(build_approach(col, row, "W"))
             if col_index(col) < len(COLS) - 1:
-                approaches.append(
-                    {"id": f"{col}{row}-E", "intersection_id": node_id(col, row), "direction": "E", "lanes": 2}
-                )
+                approaches.append(build_approach(col, row, "E"))
 
             nodes.append(
                 {
