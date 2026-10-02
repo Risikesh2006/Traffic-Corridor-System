@@ -1,7 +1,12 @@
-"""Architecture tests enforcing the two non-negotiable rules (see CLAUDE.md):
+"""Architecture tests enforcing the non-negotiable rules (see CLAUDE.md):
 
-1. Hardware boundary: control-system modules never import `sim`.
-2. Determinism: no direct wall-clock time or unseeded global randomness
+1. Hardware boundary: `controller` (field-side code) never imports `sim`.
+2. Central-module boundary: central control modules (state, tracking,
+   routing, corridor, safety, health, events) never import `sim` OR
+   `controller` directly — they reach controllers only through the
+   `SignalLink` interface (`SimNetwork` implements it in `sim/`).
+   `sim` MAY import `controller` and `core` (it hosts the field devices).
+3. Determinism: no direct wall-clock time or unseeded global randomness
    outside the files explicitly responsible for them.
 """
 
@@ -13,13 +18,17 @@ from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-CONTROL_MODULES = [
+# Field-side: must never reach into the simulated physical world directly.
+CONTROLLER_MODULE = "controller"
+
+# Central control modules: must reach controllers only via SignalLink, never
+# by importing `sim` or `controller` directly.
+CENTRAL_MODULES = [
     "state",
     "tracking",
     "routing",
     "corridor",
     "safety",
-    "controller",
     "health",
     "events",
 ]
@@ -54,16 +63,29 @@ def _imported_module_roots(path: Path) -> set[str]:
     return roots
 
 
-def test_control_modules_never_import_sim() -> None:
+def test_controller_never_imports_sim() -> None:
     violations = []
-    for module_name in CONTROL_MODULES:
+    module_dir = BACKEND_DIR / CONTROLLER_MODULE
+    for path in _all_python_files(module_dir):
+        if "sim" in _imported_module_roots(path):
+            violations.append(str(path.relative_to(BACKEND_DIR)))
+    assert not violations, f"`controller` must not import `sim`: {violations}"
+
+
+def test_central_modules_never_import_sim_or_controller() -> None:
+    violations = []
+    for module_name in CENTRAL_MODULES:
         module_dir = BACKEND_DIR / module_name
         if not module_dir.exists():
             continue
         for path in _all_python_files(module_dir):
-            if "sim" in _imported_module_roots(path):
+            roots = _imported_module_roots(path)
+            if "sim" in roots or "controller" in roots:
                 violations.append(str(path.relative_to(BACKEND_DIR)))
-    assert not violations, f"control modules must not import `sim`: {violations}"
+    assert not violations, (
+        f"central modules must reach controllers only via SignalLink, never "
+        f"by importing `sim`/`controller` directly: {violations}"
+    )
 
 
 def test_no_direct_wall_clock_time_outside_allowed_files() -> None:
