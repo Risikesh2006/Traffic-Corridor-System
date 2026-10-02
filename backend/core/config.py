@@ -59,6 +59,50 @@ class Settings(BaseModel):
     sim_ticks_per_second: int = Field(default=10, ge=1)
     default_seed: int = Field(default=4417)
 
+    # --- Traffic / queue discharge (sim/traffic.py) ---
+    jam_spacing_m: float = Field(default=7.5, gt=0, description="metres of road per queued vehicle")
+    amber_discharge_fraction: float = Field(
+        default=0.5, ge=0, le=1, description="fraction of amber during which discharge continues"
+    )
+    turn_through_prob: float = Field(default=0.70, ge=0, le=1)
+    turn_left_prob: float = Field(default=0.15, ge=0, le=1)
+    turn_right_prob: float = Field(default=0.15, ge=0, le=1)
+    yield_factor: float = Field(
+        default=0.0, ge=0, le=1, description="fraction of queued vehicles that yield to ambulance"
+    )
+    ambulance_speed_factor: float = Field(default=1.2, gt=0)
+
+    # --- Demand (sim/demand.py) ---
+    demand_base_vph: float = Field(default=300, ge=0, description="normal-road entry rate, veh/h")
+    demand_arterial_multiplier: float = Field(default=1.5, gt=0)
+    demand_internal_source_vph: float = Field(default=30, ge=0)
+    demand_peak_multiplier: float = Field(default=1.0, gt=0)
+    demand_hourly_multipliers: list[float] = Field(
+        default_factory=lambda: [
+            0.20, 0.15, 0.10, 0.10, 0.15, 0.30,  # 00-05: night trough
+            0.60, 0.90, 1.00, 0.70, 0.55, 0.55,  # 06-11: morning peak at 08
+            0.60, 0.55, 0.50, 0.55, 0.65, 0.85,  # 12-17: moderate, 14:00 ~ 0.50
+            1.00, 0.80, 0.55, 0.45, 0.35, 0.25,  # 18-23: evening peak at 18
+        ],
+        description="24 weekday hour-of-day multipliers on demand_base_vph",
+    )
+
+    # --- Sensors (sim/sensors.py) ---
+    sensor_interval_s: float = Field(default=5, gt=0)
+    sensor_density_noise_std: float = Field(default=0.5, ge=0, description="veh/km/lane std dev")
+
+    # --- Vehicle feed (sim/vehicle_feed.py) ---
+    gps_interval_s: float = Field(default=1, gt=0)
+    gps_noise_std_m: float = Field(default=5.0, ge=0)
+    map_origin_lat: float = Field(default=12.9716, ge=-90, le=90)
+    map_origin_lng: float = Field(default=77.5946, ge=-180, le=180)
+
+    # --- Network (sim/network.py) ---
+    network_latency_base_ms: int = Field(default=20, ge=0)
+    network_latency_jitter_ms: int = Field(default=10, ge=0)
+    network_drop_probability: float = Field(default=0.0, ge=0, le=1)
+    network_duplicate_probability: float = Field(default=0.0, ge=0, le=1)
+
     # --- Latency targets, p95 (PRD §14.1) ---
     latency_input_to_state_ms: int = Field(default=50, gt=0)
     latency_corridor_tick_ms: int = Field(default=100, gt=0)
@@ -73,6 +117,14 @@ class Settings(BaseModel):
             raise ValueError("all_red_s must be shorter than min_green_s")
         if self.heartbeat_timeout_s <= self.heartbeat_interval_s:
             raise ValueError("heartbeat_timeout_s must exceed heartbeat_interval_s")
+        turn_total = self.turn_through_prob + self.turn_left_prob + self.turn_right_prob
+        if abs(turn_total - 1.0) > 1e-6:
+            raise ValueError(f"turn probabilities must sum to 1.0, got {turn_total}")
+        if len(self.demand_hourly_multipliers) != 24:
+            raise ValueError(
+                f"demand_hourly_multipliers must have 24 entries, got "
+                f"{len(self.demand_hourly_multipliers)}"
+            )
         return self
 
     # --- ms accessors (ADR-001) ---
@@ -143,6 +195,21 @@ class Settings(BaseModel):
     @property
     def sim_tick_ms(self) -> int:
         return round(1000 / self.sim_ticks_per_second)
+
+    @property
+    def sensor_interval_ms(self) -> int:
+        return to_ms(self.sensor_interval_s)
+
+    @property
+    def gps_interval_ms(self) -> int:
+        return to_ms(self.gps_interval_s)
+
+    def demand_rate_vph(self, hour_of_day: int, is_arterial: bool) -> float:
+        """Entry rate (vehicles/hour) for one source, from the hour-of-day
+        profile, scenario peak override, and the arterial multiplier."""
+        multiplier = self.demand_hourly_multipliers[hour_of_day % 24]
+        rate = self.demand_base_vph * multiplier * self.demand_peak_multiplier
+        return rate * self.demand_arterial_multiplier if is_arterial else rate
 
 
 def load_settings(path: str | Path) -> Settings:

@@ -34,6 +34,42 @@ max_gps_speed_mps: 50
 sim_ticks_per_second: 10
 default_seed: 4417
 
+# Traffic / queue discharge
+jam_spacing_m: 7.5
+amber_discharge_fraction: 0.5
+turn_through_prob: 0.70
+turn_left_prob: 0.15
+turn_right_prob: 0.15
+yield_factor: 0.0
+ambulance_speed_factor: 1.2
+
+# Demand
+demand_base_vph: 300
+demand_arterial_multiplier: 1.5
+demand_internal_source_vph: 30
+demand_peak_multiplier: 1.0
+demand_hourly_multipliers:
+  [0.20, 0.15, 0.10, 0.10, 0.15, 0.30,
+   0.60, 0.90, 1.00, 0.70, 0.55, 0.55,
+   0.60, 0.55, 0.50, 0.55, 0.65, 0.85,
+   1.00, 0.80, 0.55, 0.45, 0.35, 0.25]
+
+# Sensors
+sensor_interval_s: 5
+sensor_density_noise_std: 0.5
+
+# Vehicle feed
+gps_interval_s: 1
+gps_noise_std_m: 5.0
+map_origin_lat: 12.9716
+map_origin_lng: 77.5946
+
+# Network
+network_latency_base_ms: 20
+network_latency_jitter_ms: 10
+network_drop_probability: 0.0
+network_duplicate_probability: 0.0
+
 latency_input_to_state_ms: 50
 latency_corridor_tick_ms: 100
 latency_full_replan_ms: 300
