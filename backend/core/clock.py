@@ -21,6 +21,7 @@ DEFAULT_START_LABEL = "14:00:00"
 
 class Clock(Protocol):
     def now(self) -> SimTimeMs: ...
+    def format(self, t: SimTimeMs | None = None) -> str: ...
 
 
 class SimClock:
