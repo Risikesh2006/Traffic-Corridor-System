@@ -95,6 +95,13 @@ class IncidentType(StrEnum):
     OTHER = "OTHER"
 
 
+class CommandAckStatus(StrEnum):
+    EXECUTED = "EXECUTED"
+    DUPLICATE = "DUPLICATE"
+    IGNORED_STALE_VERSION = "IGNORED_STALE_VERSION"
+    REJECTED = "REJECTED"
+
+
 def build_idempotency_key(plan_version: int, intersection_id: str, seq: int) -> str:
     """Canonical idempotency key (PRD §9/§10.6 FR-COR-05): "v{plan_version}:{id}:{seq:04d}"."""
     return f"v{plan_version}:{intersection_id}:{seq:04d}"
@@ -297,6 +304,7 @@ class Command(BaseModel):
     idempotency_key: str
     payload: dict[str, object] = Field(default_factory=dict)
     created_at: SimTimeMs
+    approval: str | None = None
 
 
 class CommandAck(BaseModel):
@@ -305,9 +313,10 @@ class CommandAck(BaseModel):
     command_id: str
     intersection_id: str
     idempotency_key: str
-    accepted: bool
+    status: CommandAckStatus
+    reason_code: str | None = None
+    effective_at: SimTimeMs | None = None
     timestamp: SimTimeMs
-    reason: str | None = None
 
 
 class Incident(BaseModel):

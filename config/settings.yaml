@@ -70,6 +70,17 @@ network_latency_jitter_ms: 10
 network_drop_probability: 0.0
 network_duplicate_probability: 0.0
 
+# Safety
+# hmac_secret: dev default below; override via CORRIDOR_HMAC_SECRET env var in any
+# non-dev deployment — never commit a real secret here.
+hmac_secret: "dev-only-insecure-secret-do-not-use-in-production"
+idempotency_store_size: 1000
+command_rate_limit_per_s: 5.0
+
+# Pedestrians
+ped_walk_s: 5.0
+ped_call_rate_per_min: 2.0
+
 latency_input_to_state_ms: 50
 latency_corridor_tick_ms: 100
 latency_full_replan_ms: 300

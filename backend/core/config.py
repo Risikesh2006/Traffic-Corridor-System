@@ -8,6 +8,7 @@ milliseconds via `*_ms` properties (ADR-001: all sim time is integer ms).
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -102,6 +103,15 @@ class Settings(BaseModel):
     network_latency_jitter_ms: int = Field(default=10, ge=0)
     network_drop_probability: float = Field(default=0.0, ge=0, le=1)
     network_duplicate_probability: float = Field(default=0.0, ge=0, le=1)
+
+    # --- Safety (backend/safety/, backend/controller/) ---
+    hmac_secret: str = Field(default="dev-only-insecure-secret-do-not-use-in-production")
+    idempotency_store_size: int = Field(default=1000, ge=1)
+    command_rate_limit_per_s: float = Field(default=5.0, gt=0)
+
+    # --- Pedestrians (sim/pedestrians.py, controller ped-clearance floor) ---
+    ped_walk_s: float = Field(default=5.0, ge=0)
+    ped_call_rate_per_min: float = Field(default=2.0, ge=0)
 
     # --- Latency targets, p95 (PRD §14.1) ---
     latency_input_to_state_ms: int = Field(default=50, gt=0)
@@ -204,6 +214,10 @@ class Settings(BaseModel):
     def gps_interval_ms(self) -> int:
         return to_ms(self.gps_interval_s)
 
+    @property
+    def ped_walk_ms(self) -> int:
+        return to_ms(self.ped_walk_s)
+
     def demand_rate_vph(self, hour_of_day: int, is_arterial: bool) -> float:
         """Entry rate (vehicles/hour) for one source, from the hour-of-day
         profile, scenario peak override, and the arterial multiplier."""
@@ -214,4 +228,8 @@ class Settings(BaseModel):
 
 def load_settings(path: str | Path) -> Settings:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    return Settings(**data)
+    settings = Settings(**data)
+    secret_override = os.environ.get("CORRIDOR_HMAC_SECRET")
+    if secret_override:
+        settings = settings.model_copy(update={"hmac_secret": secret_override})
+    return settings

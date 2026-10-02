@@ -17,7 +17,7 @@ from controller.intersection_controller import IntersectionController
 from controller.messages import Ping, Pong
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import Command, CommandAck, ControllerStatus, SignalState
+from core.models import Command, CommandAck, CommandAckStatus, ControllerStatus, SignalState
 from core.rng import RngFactory
 
 
@@ -107,15 +107,16 @@ class SimNetwork:
     def _to_ack(self, command: Command, reply: object, now: SimTimeMs) -> CommandAck:
         if isinstance(reply, CommandAck):
             return reply
-        # Controllers don't understand commands until Phase 3 — placeholder
-        # so the pipe is already wired end-to-end for when they do.
+        # Defensive fallback: handle_message() should always return a real
+        # CommandAck for a Command input. Only reachable if a future message
+        # type is misrouted here.
         return CommandAck(
             command_id=command.id,
             intersection_id=command.intersection_id,
             idempotency_key=command.idempotency_key,
-            accepted=False,
+            status=CommandAckStatus.REJECTED,
+            reason_code="UNEXPECTED_REPLY_TYPE",
             timestamp=now,
-            reason="controller does not support commands yet (Phase 3)",
         )
 
     # -- SignalLink interface -----------------------------------------------
