@@ -1,0 +1,42 @@
+.app-shell {
+  min-height: 100vh;
+  background: #0b0f14;
+  color: #e6edf3;
+  font-family: system-ui, sans-serif;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #1c2733;
+  background: #0f1620;
+}
+
+.product-name {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.mode-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mode-normal {
+  background: #113a24;
+  color: #4ade80;
+}
+
+.landing {
+  padding: 2rem 1.25rem;
+  max-width: 640px;
+}
+
+.hint {
+  color: #8b98a5;
+  font-size: 0.9rem;
+}

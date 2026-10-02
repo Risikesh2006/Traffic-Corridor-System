@@ -1,0 +1,26 @@
+# Corridor Control — runtime configuration (PRD §18)
+
+amber_s: 4
+all_red_s: 2
+min_green_s: 10
+ped_clearance_s: 7
+max_hold_s: 90
+lease_duration_s: 30
+lookahead_horizon_s: 90
+headway_s: 2.0
+startup_loss_s: 2.0
+base_buffer_s: 3
+tau_density_s: 30
+tau_gps_s: 5
+density_ttl_s: 60
+gps_loss_threshold_s: 3
+pessimism_factor: 1.2
+uncontrollable_penalty_s: 45
+hysteresis_abs_s: 15
+hysteresis_rel: 0.10
+k_alternatives: 3
+corridor_tick_s: 1
+periodic_replan_s: 10
+heartbeat_interval_s: 1
+heartbeat_timeout_s: 3
+max_gps_speed_mps: 50
