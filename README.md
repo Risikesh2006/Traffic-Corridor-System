@@ -11,8 +11,13 @@ Guide for AI coding sessions: [`CLAUDE.md`](CLAUDE.md).
 
 ## Status
 
-Phase 1 (domain model, simulation clock, city config, interfaces) complete.
-See `docs/PRD.md` §22 (Delivery Phases) for the full build plan.
+Phase 2 complete: a deterministic, headless-runnable simulation — background
+traffic, signal cycling, a simulated ambulance, sensors, GPS feed, and a
+faulty network, all composed in `backend/sim/engine.py`. No routing,
+preemption, or safety supervisor exists yet (Phases 3+); the ambulance just
+follows a manually supplied route and obeys normal signals. See
+`docs/baseline_example.txt` for a sample run and `docs/PRD.md` §22
+(Delivery Phases) for the full build plan.
 
 ## Repository structure
 
@@ -60,6 +65,27 @@ diagonal arterials.
 python -m backend.scripts.city_summary
 ```
 Validates and prints a summary of the current `config/city.json`.
+
+### Running a headless simulation baseline
+```bash
+# from the repo root, with the backend venv active
+python -m backend.scripts.run_sim --seed 4417 --minutes 10 --peak \
+    --route A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1
+```
+Prints vehicle conservation, queue stats, ambulance stop/travel-time
+metrics, and a `state_hash` for determinism checks. Sample output:
+`docs/baseline_example.txt`.
+
+### Developer map (live debug view)
+```bash
+# backend, with a live simulation running in-process:
+cd backend && DEV_SIM=1 uvicorn api.main:app --reload --port 8000
+# frontend, separately:
+cd frontend && npm run dev
+```
+Then open `http://localhost:3000/dev/map` — polls `/sim/snapshot` every
+500ms and draws the grid, signal states, queues, and the ambulance. This is
+a development debug view, not the final operator dashboard.
 
 ### Docker
 ```bash
