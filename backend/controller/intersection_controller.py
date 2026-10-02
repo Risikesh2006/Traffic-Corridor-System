@@ -65,6 +65,17 @@ class IntersectionController:
         self._idempotency_cache: dict[str, CommandAck] = {}
         self._idempotency_order: deque[str] = deque()
 
+        # Full (command, ack) history for every command this controller has
+        # ever processed — read-only observability for the invariant
+        # checker (INV-09/INV-10) and chaos tooling. Not used by the guard
+        # itself, which relies only on the idempotency cache and
+        # _applied_plan_version above.
+        self.command_log: list[tuple[Command, CommandAck]] = []
+
+    @property
+    def applied_plan_version(self) -> int:
+        return self._applied_plan_version
+
     # -- tick ------------------------------------------------------------
 
     def tick(self, now: SimTimeMs) -> list[Transition]:
@@ -130,6 +141,11 @@ class IntersectionController:
     # -- controller guard (PRD §10.8 Part A2) ------------------------------
 
     def _handle_command(self, command: Command, now: SimTimeMs) -> CommandAck:
+        ack = self._guard(command, now)
+        self.command_log.append((command, ack))
+        return ack
+
+    def _guard(self, command: Command, now: SimTimeMs) -> CommandAck:
         # 1. Approval token.
         if not verify(command, command.approval, self._secret):
             return self._ack(command, now, CommandAckStatus.REJECTED, ReasonCode.NOT_APPROVED)
