@@ -88,6 +88,23 @@ def test_central_modules_never_import_sim_or_controller() -> None:
     )
 
 
+def test_commands_reach_controllers_only_through_the_safety_gate() -> None:
+    """PRD §10.8 Part B3: `SafeSignalLink` (safety/gate.py) must be the
+    ONLY path central code uses to send commands. Since the only concrete
+    SignalLink implementation (SimNetwork) lives in `sim/`, and `safety` is
+    itself a central module forbidden from importing `sim`
+    (test_central_modules_never_import_sim_or_controller), no central
+    module can obtain a raw SignalLink to bypass the gate with — this test
+    makes that guarantee explicit and named, rather than leaving it as an
+    implied consequence of the other two checks."""
+    gate_path = BACKEND_DIR / "safety" / "gate.py"
+    assert gate_path.exists(), "safety/gate.py (SafeSignalLink) must exist"
+    assert "sim" not in _imported_module_roots(gate_path), (
+        "safety/gate.py must depend only on the SignalLink Protocol from core/, "
+        "never on a concrete sim implementation"
+    )
+
+
 def test_no_direct_wall_clock_time_outside_allowed_files() -> None:
     pattern = re.compile(r"\btime\.time\s*\(|\bdatetime\.now\s*\(|\bdatetime\.utcnow\s*\(")
     violations = []
