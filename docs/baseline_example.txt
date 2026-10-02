@@ -1,0 +1,48 @@
+$ python -m backend.scripts.run_sim --seed 4417 --minutes 10 --peak \
+    --route A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1
+(No routing/corridor/safety logic exists in Phase 2 — this is the baseline:
+what happens with background traffic and an ambulance that only obeys
+normal signals, no preemption.)
+
+=== Vehicle conservation ===
+spawned=4092 exited=2578 in_network=1514 conserved=PASS
+
+=== Top 10 longest average queues ===
+  C1->D1           avg= 13.90  max= 39
+  C6->B6           avg= 12.13  max= 29
+  A2->A1           avg= 11.33  max= 32
+  F5->F6           avg= 11.21  max= 27
+  F3->F4           avg= 11.16  max= 33
+  B6->A6           avg= 11.06  max= 33
+  F2->F1           avg= 10.99  max= 30
+  E6->F6           avg= 10.44  max= 30
+  A5->A6           avg=  9.70  max= 24
+  A3->A2           avg=  9.57  max= 26
+
+=== Network-wide average delay ===
+  26.83 s/vehicle
+
+=== Worst continuous red hold ===
+  D1 W: 47.9 s
+
+=== Ambulance AMB-1 ===
+  travel_time: 353.4 s
+  stops: 9
+  stopped_time: 144.3 s
+  time per section:
+    A6->B6           22.5 s
+    B6->B5           22.4 s
+    B5->C5           22.4 s
+    C5->C4           22.4 s
+    C4->D4           14.9 s
+    D4->D3           14.9 s
+    D3->E3           22.4 s
+    E3->E2           22.4 s
+    E2->F2           22.4 s
+    F2->F1           22.4 s
+
+=== Determinism ===
+  final state_hash: 9551e8eb4e033033419be7af80914b1dda2975b760b9bc2c6a80db5c95e12545
+
+=== Performance ===
+  wall-clock runtime: 7.40 s

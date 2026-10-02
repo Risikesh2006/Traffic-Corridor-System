@@ -1,7 +1,10 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+import pytest
 
 from core.city_loader import load_city
 from core.config import load_settings
@@ -75,3 +78,20 @@ def test_determinism_across_subprocess():
     sim = _build(seed=4417)
     sim.run_for(60_000)
     assert sim.state_hash() == subprocess_hash
+
+
+@pytest.mark.slow
+def test_ten_minutes_at_peak_runs_under_15_seconds():
+    settings = load_settings(CONFIG_DIR / "settings.yaml")
+    settings = settings.model_copy(update={"demand_peak_multiplier": 2.5})
+    city = load_city(CONFIG_DIR / "city.json", settings)
+    sim = Simulation(city, settings, seed=4417)
+    sim.add_ambulance(
+        "AMB-1", "A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1".split(","), Priority.P1
+    )
+
+    start = time.perf_counter()
+    sim.run_for(10 * 60 * 1000)
+    elapsed_s = time.perf_counter() - start
+
+    assert elapsed_s < 15.0, f"10 sim-minutes at peak took {elapsed_s:.2f}s wall time (budget: 15s)"
