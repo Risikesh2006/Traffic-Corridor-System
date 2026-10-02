@@ -15,6 +15,7 @@ COPY events ./events
 COPY health ./health
 COPY chaos ./chaos
 COPY api ./api
+COPY scripts ./scripts
 
 RUN pip install --no-cache-dir -e .
 

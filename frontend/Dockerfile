@@ -3,11 +3,16 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 FROM node:20-slim
 WORKDIR /app
-RUN npm install -g serve
-COPY --from=build /app/dist ./dist
-EXPOSE 4173
-CMD ["serve", "-s", "dist", "-l", "4173"]
+ENV NODE_ENV=production
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+EXPOSE 3000
+CMD ["npm", "run", "start"]

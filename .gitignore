@@ -3,14 +3,17 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+.mypy_cache/
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
 
-# Node
+# Node / Next.js
 node_modules/
-dist/
-.vite/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
 
 # Env / secrets
 .env
