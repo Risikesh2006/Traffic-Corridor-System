@@ -74,7 +74,10 @@ def test_amber_and_all_red_durations_exact():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
     phase = sm.current_phase()
-    now = phase.min_green_ms
+    configured_green_ms = next(
+        e.green_ms for e in node.default_plan if e.phase_id == sm.current_phase_id
+    )
+    now = configured_green_ms
     sm.tick(now)
     assert sm.state == SignalState.AMBER
     amber_entered_at = sm.state_started_at
@@ -200,8 +203,8 @@ def test_unsupported_message_type():
 def test_signal_changed_events_emitted():
     node = _b2_intersection()
     controller = IntersectionController(node)
-    phase = controller.state_machine.current_phase()
-    controller.tick(phase.min_green_ms)  # -> AMBER
+    configured_green_ms = node.default_plan[0].green_ms
+    controller.tick(configured_green_ms)  # -> AMBER
     events = controller.drain_events()
     assert len(events) == 1
     assert events[0].type.value == "SIGNAL_CHANGED"

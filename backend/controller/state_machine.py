@@ -52,6 +52,9 @@ class IntersectionStateMachine:
         self.intersection_id = intersection.id
         self._phases: dict[str, Phase] = {p.id: p for p in intersection.phases}
         self._cycle: list[str] = [e.phase_id for e in intersection.default_plan]
+        self._configured_green_ms: dict[str, int] = {
+            e.phase_id: e.green_ms for e in intersection.default_plan
+        }
         for phase_id in self._cycle:
             if phase_id not in self._phases:
                 raise ControllerError(
@@ -128,10 +131,9 @@ class IntersectionStateMachine:
 
     def _maybe_advance(self, now: SimTimeMs) -> Transition | None:
         if self.state == SignalState.GREEN:
-            phase = self.current_phase()
-            min_green_met_at = self.phase_started_at + phase.min_green_ms
             target = self._next_target_phase_id()
-            if now < min_green_met_at:
+            ready_at = self._green_ready_at(self.current_phase_id)  # type: ignore[arg-type]
+            if now < ready_at:
                 return None
             if target == self.current_phase_id:
                 # Re-requested the same phase: nothing to do, stay green.
@@ -160,6 +162,19 @@ class IntersectionStateMachine:
         if self._pending_target_phase_id is not None:
             return self._pending_target_phase_id
         return self._cycle[(self._cycle_index + 1) % len(self._cycle)]
+
+    def _green_ready_at(self, phase_id: str) -> SimTimeMs:
+        """Earliest time GREEN may end for `phase_id`. Normal cycling holds
+        the full configured green_ms from default_plan; an explicit
+        request_phase_change() only needs min_green_ms to elapse — that is
+        what lets a later preemption shorten (never below min green) an
+        otherwise longer scheduled green."""
+        phase = self.phase(phase_id)
+        min_green_met_at = self.phase_started_at + phase.min_green_ms
+        if self._pending_target_phase_id is not None:
+            return min_green_met_at
+        configured_met_at = self.phase_started_at + self._configured_green_ms[phase_id]
+        return max(min_green_met_at, configured_met_at)
 
     def _enter_amber(self, now: SimTimeMs, target_phase_id: str) -> Transition:
         from_state = self.state
