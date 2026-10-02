@@ -144,7 +144,6 @@ class SignalPlanEntry(BaseModel):
 
     phase_id: str
     green_ms: int = Field(gt=0)
-    offset_ms: int = Field(default=0, ge=0)
 
 
 class Intersection(BaseModel):
@@ -155,6 +154,7 @@ class Intersection(BaseModel):
     phases: list[Phase] = Field(default_factory=list)
     conflict_matrix: ConflictMatrix
     default_plan: list[SignalPlanEntry] = Field(default_factory=list)
+    cycle_offset_ms: int = Field(default=0, ge=0)
     controller_status: ControllerStatus = ControllerStatus.ONLINE
     current_phase: str | None = None
     phase_started_at: SimTimeMs = 0
