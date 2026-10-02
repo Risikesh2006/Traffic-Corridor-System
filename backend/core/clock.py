@@ -1,7 +1,7 @@
 """The simulated clock.
 
 This is the ONLY file in the control system permitted to reference real
-wall-clock time (and only inside `RealtimePacer`, which is a display/demo
+wall-clock time (and only inside `WallPacer`, which is a display/demo
 convenience, never a source of truth for `SimClock`). Every other module
 reads time through the `Clock` protocol so that a run is fully reproducible
 from its seed and inputs (PRD §8.7, ADR-001).
@@ -58,7 +58,7 @@ class SimClock:
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{millis:03d}"
 
 
-class RealtimePacer:
+class WallPacer:
     """Optional helper to pace a sim loop against real wall-clock time for
     live demos (e.g. "1x speed" = 1 sim-second per real second). Never used
     by control-system logic, never a source of truth for `SimClock.now()`.
@@ -68,6 +68,16 @@ class RealtimePacer:
         if speed_multiplier <= 0:
             raise ValueError("speed_multiplier must be positive")
         self.speed_multiplier = speed_multiplier
+        self._last_real_s = _real_time.monotonic()
+
+    def set_speed(self, speed_multiplier: float) -> None:
+        if speed_multiplier <= 0:
+            raise ValueError("speed_multiplier must be positive")
+        self.speed_multiplier = speed_multiplier
+
+    def reset(self) -> None:
+        """Re-anchors to 'now' — call after resuming from a pause so the
+        paused wall-clock interval isn't counted as elapsed sim time."""
         self._last_real_s = _real_time.monotonic()
 
     def sim_ms_elapsed(self) -> int:
