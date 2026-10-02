@@ -102,6 +102,17 @@ class CommandAckStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class SensorMetric(StrEnum):
+    DENSITY = "DENSITY"
+    QUEUE_COUNT = "QUEUE_COUNT"
+
+
+class EstimateSource(StrEnum):
+    LIVE = "LIVE"
+    BLENDED = "BLENDED"
+    HISTORICAL = "HISTORICAL"
+
+
 def build_idempotency_key(plan_version: int, intersection_id: str, seq: int) -> str:
     """Canonical idempotency key (PRD §9/§10.6 FR-COR-05): "v{plan_version}:{id}:{seq:04d}"."""
     return f"v{plan_version}:{intersection_id}:{seq:04d}"
@@ -229,6 +240,7 @@ class SensorReading(BaseModel):
 
     source_id: str
     road_id: str
+    metric: SensorMetric = SensorMetric.DENSITY
     value: float
     timestamp: SimTimeMs
     sequence: int
@@ -245,6 +257,48 @@ class GpsFix(BaseModel):
     heading_deg: float
     timestamp: SimTimeMs
     sequence: int
+
+
+class PresenceReading(BaseModel):
+    """A stop-line emergency-vehicle presence detector firing (PRD Phase 4
+    D1) — a secondary confirmation source used when GPS is lost. Real-world
+    equivalent: optical/acoustic emergency vehicle detectors."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source_id: str
+    intersection_id: str
+    approach_direction: Direction
+    vehicle_id: str
+    timestamp: SimTimeMs
+    sequence: int
+
+
+class ActiveHoldInfo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    phase_id: str
+    hold_until: SimTimeMs
+
+
+class StatusReport(BaseModel):
+    """What an intersection controller reports up-link every
+    heartbeat_interval_s (PRD Phase 4 A4) — subject to the same network
+    latency/drops as any other message, so central code must treat it as
+    possibly delayed or missing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    intersection_id: str
+    sequence: int
+    sent_at: SimTimeMs
+    controller_status: ControllerStatus
+    signal_state: SignalState
+    current_phase_id: str | None
+    state_started_at: SimTimeMs
+    red_since: dict[Direction, SimTimeMs]
+    applied_plan_version: int
+    active_hold: ActiveHoldInfo | None = None
 
 
 class EmergencyVehicle(BaseModel):

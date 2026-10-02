@@ -55,6 +55,27 @@ class Settings(BaseModel):
 
     # --- Validation limits ---
     max_gps_speed_mps: float = Field(default=50, gt=0)
+    max_gps_jump_m: float = Field(
+        default=300, gt=0, description="implausible single-fix displacement regardless of dt"
+    )
+    clock_skew_tolerance_s: float = Field(
+        default=0.2, ge=0, description="future-timestamp tolerance before clamping (FR-ING)"
+    )
+
+    # --- Historical profile (state/history.py) ---
+    history_bucket_minutes: int = Field(default=15, gt=0)
+    history_seeds: list[int] = Field(default_factory=lambda: [4417, 1, 2, 3, 4])
+
+    # --- Tracking (tracking/) ---
+    alpha_beta_alpha: float = Field(default=0.6, gt=0, lt=1)
+    alpha_beta_beta: float = Field(default=0.2, gt=0, lt=1)
+    ewma_speed_alpha: float = Field(default=0.3, gt=0, le=1)
+    map_match_radius_m: float = Field(default=30, gt=0)
+    deviation_fix_count: int = Field(default=3, ge=1)
+    deviation_distance_m: float = Field(default=40, gt=0)
+    deviation_duration_s: float = Field(default=5, gt=0)
+    stop_line_margin_m: float = Field(default=5, ge=0)
+    eta_base_window_s: float = Field(default=5, ge=0)
 
     # --- Simulation ---
     sim_ticks_per_second: int = Field(default=10, ge=1)
@@ -217,6 +238,18 @@ class Settings(BaseModel):
     @property
     def ped_walk_ms(self) -> int:
         return to_ms(self.ped_walk_s)
+
+    @property
+    def clock_skew_tolerance_ms(self) -> int:
+        return to_ms(self.clock_skew_tolerance_s)
+
+    @property
+    def deviation_duration_ms(self) -> int:
+        return to_ms(self.deviation_duration_s)
+
+    @property
+    def eta_base_window_ms(self) -> int:
+        return to_ms(self.eta_base_window_s)
 
     def demand_rate_vph(self, hour_of_day: int, is_arterial: bool) -> float:
         """Entry rate (vehicles/hour) for one source, from the hour-of-day

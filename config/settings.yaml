@@ -81,6 +81,25 @@ command_rate_limit_per_s: 5.0
 ped_walk_s: 5.0
 ped_call_rate_per_min: 2.0
 
+# Ingestion / validation
+max_gps_jump_m: 300
+clock_skew_tolerance_s: 0.2
+
+# Historical profile
+history_bucket_minutes: 15
+history_seeds: [4417, 1, 2, 3, 4]
+
+# Tracking
+alpha_beta_alpha: 0.6
+alpha_beta_beta: 0.2
+ewma_speed_alpha: 0.3
+map_match_radius_m: 30
+deviation_fix_count: 3
+deviation_distance_m: 40
+deviation_duration_s: 5
+stop_line_margin_m: 5
+eta_base_window_s: 5
+
 latency_input_to_state_ms: 50
 latency_corridor_tick_ms: 100
 latency_full_replan_ms: 300
