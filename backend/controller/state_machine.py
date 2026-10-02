@@ -103,6 +103,9 @@ class IntersectionStateMachine:
             raise ControllerError(f"unknown phase '{phase_id}'")
         return self._phases[phase_id]
 
+    def has_phase(self, phase_id: str) -> bool:
+        return phase_id in self._phases
+
     def green_movements(self) -> set[Direction]:
         if self.state == SignalState.GREEN and self.current_phase_id is not None:
             return set(self.current_phase().movements)

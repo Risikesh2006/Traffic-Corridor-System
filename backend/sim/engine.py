@@ -35,7 +35,14 @@ class Simulation:
         self.rng = RngFactory(seed)
 
         self.controllers: dict[str, IntersectionController] = {
-            n.id: IntersectionController(n) for n in sorted(city.intersections, key=lambda n: n.id)
+            n.id: IntersectionController(
+                n,
+                ped_walk_ms=settings.ped_walk_ms,
+                max_hold_ms=settings.max_hold_ms,
+                hmac_secret=settings.hmac_secret,
+                idempotency_store_size=settings.idempotency_store_size,
+            )
+            for n in sorted(city.intersections, key=lambda n: n.id)
         }
         self.network = SimNetwork(settings, self.rng, self.controllers)
         self.traffic = TrafficModel(city, settings, self.rng, self.controllers)
