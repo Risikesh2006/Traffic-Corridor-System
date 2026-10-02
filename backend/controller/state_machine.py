@@ -43,7 +43,7 @@ class Transition:
 class IntersectionStateMachine:
     """Pure, deterministic signal state machine for one intersection."""
 
-    def __init__(self, intersection: Intersection) -> None:
+    def __init__(self, intersection: Intersection, ped_walk_ms: int = 0) -> None:
         if not intersection.phases:
             raise ControllerError(f"intersection {intersection.id} has no phases")
         if not intersection.default_plan:
@@ -75,6 +75,15 @@ class IntersectionStateMachine:
         # round-robin cycle once the current mandatory green is served.
         self._pending_target_phase_id: str | None = None
         self.flashing_reason: str | None = None
+
+        # Pedestrian service (PRD §10.8 A4): a call for a phase that's not
+        # currently green waits as "pending"; once that phase goes green,
+        # service (WALK + clearance) starts and the green may not end
+        # before it finishes, overriding even an explicit phase-change
+        # request (clearance must never be cut short).
+        self._ped_walk_ms = ped_walk_ms
+        self._ped_call_pending: dict[str, bool] = dict.fromkeys(self._phases, False)
+        self.ped_service_end_at: SimTimeMs | None = None
 
         # Per-approach direction: when it most recently became red (None if
         # currently green/amber for that direction). Used for max-hold later.
@@ -168,13 +177,17 @@ class IntersectionStateMachine:
         the full configured green_ms from default_plan; an explicit
         request_phase_change() only needs min_green_ms to elapse — that is
         what lets a later preemption shorten (never below min green) an
-        otherwise longer scheduled green."""
+        otherwise longer scheduled green. An active pedestrian service
+        floor (if any) applies unconditionally, even over a pending
+        request — clearance is never cut short."""
         phase = self.phase(phase_id)
-        min_green_met_at = self.phase_started_at + phase.min_green_ms
+        floor = self.phase_started_at + phase.min_green_ms
+        if self.ped_service_end_at is not None:
+            floor = max(floor, self.ped_service_end_at)
         if self._pending_target_phase_id is not None:
-            return min_green_met_at
+            return floor
         configured_met_at = self.phase_started_at + self._configured_green_ms[phase_id]
-        return max(min_green_met_at, configured_met_at)
+        return max(floor, configured_met_at)
 
     def _enter_amber(self, now: SimTimeMs, target_phase_id: str) -> Transition:
         from_state = self.state
@@ -209,6 +222,13 @@ class IntersectionStateMachine:
         if self._pending_target_phase_id == phase_id:
             self._pending_target_phase_id = None
         self.next_phase_id = None
+
+        if self._ped_call_pending.get(phase_id):
+            self._ped_call_pending[phase_id] = False
+            self.ped_service_end_at = now + self._ped_walk_ms + new_phase.ped_clearance_ms
+        else:
+            self.ped_service_end_at = None
+
         t = Transition(now, from_state, self.state, phase_id)
         self.transitions.append(t)
         return t
@@ -235,8 +255,10 @@ class IntersectionStateMachine:
         target_phase = self.phase(target_phase_id)
         if self.state == SignalState.GREEN:
             phase = self.current_phase()
-            min_green_met_at = self.phase_started_at + phase.min_green_ms
-            amber_start = max(now, min_green_met_at)
+            floor = self.phase_started_at + phase.min_green_ms
+            if self.ped_service_end_at is not None:
+                floor = max(floor, self.ped_service_end_at)
+            amber_start = max(now, floor)
             all_red_start = amber_start + phase.amber_ms
             return all_red_start + target_phase.all_red_ms
         if self.state == SignalState.AMBER:
@@ -247,6 +269,22 @@ class IntersectionStateMachine:
             all_red_ends_at = self.state_started_at + target_phase.all_red_ms
             return all_red_ends_at
         return now
+
+    def register_pedestrian_call(self, phase_id: str, now: SimTimeMs) -> None:
+        """A pedestrian call for `phase_id`'s crossing. If that phase is
+        already green, starts its service window immediately (if not
+        already running); otherwise marks it pending so service starts the
+        next time that phase goes green."""
+        if phase_id not in self._phases:
+            raise ControllerError(f"unknown phase '{phase_id}'")
+        if self.state == SignalState.FLASHING_RED:
+            return
+        if self.state == SignalState.GREEN and self.current_phase_id == phase_id:
+            if self.ped_service_end_at is None:
+                phase = self.phase(phase_id)
+                self.ped_service_end_at = now + self._ped_walk_ms + phase.ped_clearance_ms
+            return
+        self._ped_call_pending[phase_id] = True
 
     def enter_flashing(self, reason: str, now: SimTimeMs) -> None:
         """Fail-safe: enter FLASHING_RED. Terminal for this phase of the

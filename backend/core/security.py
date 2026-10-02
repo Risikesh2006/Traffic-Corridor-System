@@ -49,15 +49,23 @@ def sign_command(
     secret: str,
 ) -> str:
     payload = _canonical_payload(
-        command_type, intersection_id, phase_id, hold_until, plan_version, idempotency_key, issued_at
+        command_type,
+        intersection_id,
+        phase_id,
+        hold_until,
+        plan_version,
+        idempotency_key,
+        issued_at,
     )
     return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
 def sign(command: Command, secret: str) -> str:
     payload_obj = command.payload
-    phase_id = payload_obj.get("phase_id") if isinstance(payload_obj, dict) else None
-    hold_until = payload_obj.get("hold_until") if isinstance(payload_obj, dict) else None
+    phase_id_raw = payload_obj.get("phase_id") if isinstance(payload_obj, dict) else None
+    hold_until_raw = payload_obj.get("hold_until") if isinstance(payload_obj, dict) else None
+    phase_id = str(phase_id_raw) if phase_id_raw is not None else None
+    hold_until = hold_until_raw if isinstance(hold_until_raw, int) else None
     return sign_command(
         command_type=str(command.type),
         intersection_id=command.intersection_id,
