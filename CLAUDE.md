@@ -25,6 +25,11 @@ making non-trivial changes.
    `backend/core/interfaces.py` (today implemented by `SimNetwork`). Only
    `backend/sim/` is allowed to import both `core/` and `controller/` (it
    hosts and drives the field devices). See ADR-005.
+9. **COMMANDS ONLY VIA THE GATE:** Central code must send every command
+   through `safety.gate.SafeSignalLink`, never a raw `SignalLink`. This
+   follows automatically from rule 2 (the only concrete `SignalLink` is
+   `SimNetwork`, which lives in `sim/`), but `test_boundary.py` also checks
+   it explicitly, by name. See ADR-013.
 3. **TIME UNITS:** Represent simulation time as integer milliseconds
    (`SimTimeMs = int`) to avoid floating-point drift. Durations in config are
    seconds; convert at load time.
@@ -49,10 +54,13 @@ test that scans imports and fails the build if rules 1 or 2 are violated.
 ```bash
 pytest                      # everything, including slow-marked tests
 pytest -m "not slow"        # skip slow-marked tests (e.g. the 15s sim budget check)
+
+# Hypothesis profiles (tests/conftest.py): "default" (100 examples, fast
+# iteration) vs "thorough" (>=10,000 examples) for the safety-layer
+# property/stateful tests:
+HYPOTHESIS_PROFILE=thorough pytest tests/test_safety_properties.py
+HYPOTHESIS_PROFILE=thorough pytest tests/test_safety_stateful.py
 ```
-Hypothesis's `thorough` profile (>=10,000 examples) is introduced in Phase 3
-for the safety-layer property/stateful tests — see that phase's test files
-for how to select it.
 
 ## Commands
 
@@ -83,6 +91,10 @@ python -m backend.scripts.run_sim --seed 4417 --minutes 10 --peak \
 # polled by the frontend's developer map at /dev/map:
 DEV_SIM=1 uvicorn api.main:app --reload --port 8000
 
+# Safety evidence: chaotic-commander + invariant checker across N seeds
+# (from the repo root; must report 0 violations)
+python -m backend.scripts.safety_report --seeds 20 --minutes 10
+
 # Frontend (from frontend/)
 npm install
 npm run dev          # http://localhost:3000
@@ -104,18 +116,22 @@ backend/
   sim/         simulator: traffic (point-queue), demand, ambulance, sensors,
                vehicle (GPS) feed, SimNetwork, engine (tick loop), runner
                (realtime pacing), metrics
-  safety/      safety supervisor — empty until Phase 3
+  safety/      SafetySupervisor (central policy layer) + SafeSignalLink
+               (fail-closed gate — the ONLY path central code may send
+               commands through)
   state/       world state, freshness, historical profiles — empty until Phase 4
   tracking/    vehicle tracker, ETA, dead reckoning — empty until Phase 4
   routing/     cost model, A*, Yen's — empty until Phase 5
   corridor/    preemption timing, leases, neighbour coordination — empty until Phase 6
   events/      event bus, event store, replay — empty until Phase 8
   health/      heartbeats, mode manager — empty until Phase 8
-  chaos/       invariant checker lands in Phase 3 (reused by chaos testing);
-               failure injection itself is a later phase
+  chaos/       InvariantChecker (independently re-derives every safety
+               invariant — never trusts controller/supervisor verdicts)
+               and ChaoticCommander; failure injection is a later phase
   api/         FastAPI app (REST, WebSocket, auth); DEV_SIM=1 runs a live
                Simulation for the developer map
-  scripts/     CLI scripts (generate_city, city_summary, run_sim)
+  scripts/     CLI scripts (generate_city, city_summary, run_sim,
+               safety_report)
   tests/       pytest suite, including the import-boundary architecture test
 frontend/      Next.js (App Router, TypeScript, Tailwind) — operator/crew/
                hospital UIs, plus /dev/map (developer-only live map debug view)
@@ -127,4 +143,4 @@ docs/
 docker-compose.yml
 ```
 
-## Current phase: Phase 2 complete
+## Current phase: Phase 3 complete

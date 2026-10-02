@@ -65,6 +65,45 @@ Every run is fully reproducible from its `seed`: `Simulation.state_hash()`
 is verified identical both within a process and across a fresh subprocess
 for the same seed (`test_engine.py`).
 
+### Safety architecture (defence in depth)
+
+Two independent layers, each checking what it can know reliably (ADR-011):
+
+| Layer | Where | Knows | Checks |
+|---|---|---|---|
+| Safety Supervisor | Central (`backend/safety/`) | Policy, city config, last REPORTED intersection state (may be stale) | Is this command allowed at all? Well-formed, valid target/phase, controllable, version order, hold policy, rate limit |
+| Controller guard | Field side (`backend/controller/`) | The EXACT current signal state and timers | Can this execute safely RIGHT NOW? Approval, idempotency, version, FLASHING, phase validity, timing (defer, never reject), local max-hold |
+
+A command must pass both to take effect:
+
+```
+ central code
+      |
+      v
+ SafeSignalLink.send(command)        <- the ONLY path central code may use (ADR-013)
+      |
+      v
+ SafetySupervisor.validate()  --[rejected]--> nothing sent, Decision returned
+      | [approved + HMAC approval attached]
+      v
+ SignalLink (SimNetwork)             <- latency / drop / duplicate
+      |
+      v
+ IntersectionController.handle_message()
+      |
+      v
+ controller guard: approval -> idempotency -> version -> FLASHING -> dispatch
+      |
+      v
+ IntersectionStateMachine.request_phase_change()   <- defers, never bypasses timing
+```
+
+If the supervisor is unhealthy, `SafeSignalLink` rejects everything with
+`SUPERVISOR_UNAVAILABLE` before the network is ever touched — fail closed
+(ADR-013). If the network drops or delays a message, the controller guard
+is still correct on its own, because it never depended on the supervisor's
+timing judgement in the first place (ADR-011).
+
 ### Domain Model
 
 Entities implemented in `backend/core/models.py` (PRD §9), as typed,
@@ -132,24 +171,59 @@ SAFE --[components healthy again]--> DEGRADED --> NORMAL
 
 ## 3. Technical Reasoning
 
-_To be expanded. See `docs/decisions.md` for the ADRs backing the choices
-made so far (ADR-001 through ADR-010)._
+**Why two safety layers instead of one.** A single central checker would
+have to either trust a possibly-stale view for exact timing (unsafe) or
+refuse to approve anything whose view is more than an instant old (unusably
+fragile under any real network latency). Splitting policy (central) from
+timing (local) means staleness only ever costs *time*, never *safety*
+(ADR-011) — this is the mechanism behind the PRD's central design
+principle, not just a restatement of it.
+
+**Why HMAC approvals.** Without a cryptographic approval, anything that
+can reach a controller's inbound channel — a bug, a compromised dependency,
+a misconfigured test — could command a signal change directly. Signing the
+command's own fields (not a separate token) means a tampered field is
+detected by the signature itself failing, not by a separate "did this
+field change" check (ADR-012).
+
+**Why fail closed.** FR-SAF-04 isn't just a validation rule; it's a
+property of the WHOLE pipeline: `SafeSignalLink` refuses to even attempt
+delivery when its supervisor is unavailable, rather than relying on the
+supervisor to reject things itself (which it can't do if it's down).
+"Nothing sent" is a stronger guarantee than "everything sent gets
+rejected," because it doesn't depend on the broken component still working
+correctly enough to reject (ADR-013).
+
+**Why property-based and stateful testing.** Unit tests prove each check
+works in the one scenario it was written for. The property test (random
+command sequences — valid/garbage phases, hold durations, version
+ordering, forged approvals, forced FLASHING_RED) and the stateful test
+(a small multi-intersection system driven through randomly ordered rules —
+time, commands, network faults, supervisor crashes, pedestrian calls) are
+what actually search the space of orderings and inputs a hand-written test
+suite wouldn't think to try — and the 10,000-example thorough run of the
+property test found a real edge case (see ADR-019) that no unit test had
+covered. The mutation tests (ADR-019) then prove the other direction: that
+disabling a real check gets caught, so the property/stateful tests aren't
+passing vacuously.
 
 ## 4. Failure & Edge Cases
 
-_To be expanded as the safety supervisor, resilience, and chaos modules are
-built (PRD §12, §13). One Phase 2 case worth noting now: the intersection
-controller's local conflict self-check (`IntersectionStateMachine.
-_check_invariant`) runs every tick and enters `FLASHING_RED` — a fail-safe,
-terminal state for now — if it ever detects two conflicting movements would
-be green/amber simultaneously. This is deliberately redundant with the
-Safety Supervisor arriving in Phase 3: the controller never trusts that
-nothing upstream could be wrong._
+| Case | Handling | Proven by |
+|---|---|---|
+| Safety Supervisor crash or silently stops heartbeating | `SafeSignalLink` fails closed — every command rejected with `SUPERVISOR_UNAVAILABLE`, nothing sent; existing holds expire on their own `hold_until`, enforced locally | `test_gate.py::test_supervisor_crash_rejects_everything_and_sends_nothing`, `::test_supervisor_missed_heartbeat_also_fails_closed` |
+| Duplicate command (network retry/duplication) | Controller's idempotency cache returns the ORIGINAL result tagged `DUPLICATE`, never re-executes (INV-09) | `test_controller_guard.py::test_duplicate_returns_original_result_without_reexecuting`, checker INV-09 in the property/stateful/mutation tests |
+| Out-of-order command (network reordering) | `plan_version` older than applied → `IGNORED_STALE_VERSION` at the controller (INV-08), and separately tracked at the supervisor from its own perspective | `test_controller_guard.py::test_stale_version_ignored`, `test_supervisor.py::test_stale_version_rejected` |
+| Forged or tampered command | HMAC verification fails → `REJECTED/NOT_APPROVED`, independent of how the command arrived | `test_controller_guard.py::test_forged_approval_rejected`, `test_security.py` tamper tests, mutation test disabling verification |
+| Hold would starve a cross-street approach | Controller interrupts its own hold to serve the starved approach, then resumes (INV-06), with zero central involvement | `test_controller_guard.py::test_local_max_hold_serves_starved_approach` |
+| Pedestrian call mid-green | Green is floored past `ped_walk_ms + ped_clearance_ms`, deferring even a pending preemption request (INV-05) | `test_pedestrians.py`, checker INV-05 |
+| Conflict monitor forces FLASHING_RED mid-transition | Allowed to cut amber/all-red/min-green/ped-clearance short — this is the fail-safe override, not a timing violation (see ADR-019) | `test_safety_properties.py` (found this exact case at 10,000 examples) |
 
 ## 5. Trade-offs
 
 _To be expanded. See `docs/decisions.md` for trade-offs already recorded,
 in particular ADR-006 through ADR-008 (point-queue model, permissive
-turns, head-of-line blocking) — each trades simulation fidelity for the
-performance and simplicity this project's actual evaluation criteria
-(safety, determinism, corridor timing) need._
+turns, head-of-line blocking) and ADR-015/ADR-017 (bounded idempotency
+store; reject-don't-cap hold policy) — each trades either simulation
+fidelity or caller convenience for the performance, transparency, and
+safety this project's actual evaluation criteria need._

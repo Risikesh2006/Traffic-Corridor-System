@@ -288,3 +288,246 @@ state machine without touching `enter_flashing()`'s contract; (3) corridor
 control can layer "resume previous plan" logic on top of
 `request_phase_change()` without the state machine needing to know about
 leases at all.
+
+---
+
+## ADR-011: Two-layer safety split — central policy vs. local timing
+
+**Context.** PRD §10.8 asks for defence in depth: a central Safety
+Supervisor and a local controller guard. The question is what each layer
+should actually be responsible for, given the supervisor's view of an
+intersection (`IntersectionView`) can be arbitrarily stale (network delay,
+drops) while the controller's own view of itself is always exactly current.
+
+**Decision.** The supervisor owns *policy* — is this command well-formed,
+targeting a real phase, for a controllable intersection, with a monotonic
+version, a hold within lease/max-hold policy, under the rate limit? It
+never tries to enforce *exact* timing (amber/all-red/min-green/ped
+clearance), because by the time its decision reaches the controller, its
+view could already be wrong. The controller guard re-validates everything
+the supervisor could have gotten wrong from staleness — approval,
+idempotency, version, FLASHING, phase validity — and is the ONLY layer that
+enforces exact timing, because it's the only layer that can't be stale
+about its own state. A command must pass both layers to take effect.
+
+**Consequences.** Neither layer trusts the other. A compromised or buggy
+central system can get every command rejected at the controller, but can
+never make the controller itself apply an unsafe command, because the
+controller never relies on the supervisor's timing judgement — only its
+"is this allowed at all" judgement, re-checked against ground truth.
+
+---
+
+## ADR-012: HMAC approval tokens over a shared vocabulary in `core/`
+
+**Context.** INV-10 requires that no command executes without supervisor
+approval — otherwise anything with access to the controller's inbound
+message channel (the network) could directly command a signal change. The
+`ReasonCode` enum (rejection/deferral/duplicate explanations) needs to be
+shared between the supervisor and the controller guard so a human reading
+either layer's logs sees the same vocabulary.
+
+**Decision.** `core/security.py` provides `sign()`/`verify()`: HMAC-SHA256
+over the command's own canonical fields (type, intersection, phase_id,
+hold_until, plan_version, idempotency_key, issued_at), compared with
+`hmac.compare_digest` (constant-time, avoiding a timing side-channel).
+`core/reasons.py` holds `ReasonCode`. Both live in `core/`, NOT in
+`safety/` as the brief originally suggested — putting them in `safety/`
+would force the field-side `controller` package to import a central
+package to verify a signature or quote a reason code, inverting the
+hardware boundary (ADR-005) the whole project is built around. The
+secret itself comes from `Settings.hmac_secret`, with a documented
+dev-only default and a `CORRIDOR_HMAC_SECRET` env var override.
+
+**Consequences.** `controller/` still depends only on `core/`. A forged or
+tampered command (wrong secret, or any field changed after signing) fails
+`verify()` and is rejected with `NOT_APPROVED`, regardless of how it
+arrived — this is the project's only defence against a compromised network
+path being used to directly command a signal.
+
+---
+
+## ADR-013: Fail-closed gate — nothing sent when the supervisor is down
+
+**Context.** FR-SAF-04 and FH-05 require that if the Safety Supervisor is
+unavailable, no new commands execute, and the system stays safe (just
+slower). The question is how "unavailable" is detected and what happens to
+in-flight holds.
+
+**Decision.** `SafeSignalLink` (the only path central code may use to send
+commands — enforced by `test_boundary.py`, since `safety` is forbidden
+from importing `sim`/`controller`, so no central code can get a raw
+`SignalLink` to bypass it with) checks `supervisor.is_healthy()` before
+doing anything else. A supervisor is healthy only if it hasn't been
+explicitly `crash()`-ed AND has `heartbeat()`-ed within
+`heartbeat_timeout_ms` — a silently-dead process (no explicit crash, just
+stopped heartbeating) is caught the same way a deliberately crashed one is.
+When unhealthy, every command is rejected with `SUPERVISOR_UNAVAILABLE`
+and the underlying `SignalLink.send()` is never called. Existing holds are
+NOT actively released — they simply stop being renewed, so they expire on
+their own `hold_until` (enforced locally by the controller regardless of
+the supervisor), and local max-hold enforcement (ADR-014) keeps running
+independent of the supervisor the whole time.
+
+**Consequences.** A supervisor outage degrades the system to "no new
+preemptions" rather than "ambulance loses its current green" — the
+in-progress hold rides out on controller-local logic alone. This is
+exactly the degraded-but-safe behaviour the design principle promises:
+central failure makes things slower, never unsafe.
+
+---
+
+## ADR-014: Local max-hold enforcement interrupts, then resumes, the hold
+
+**Context.** PRD §10.8 A2 step 7 requires the controller to enforce
+max-hold itself, even if the central system asks it not to — a stale or
+compromised central system must never be able to starve a cross-street
+approach indefinitely.
+
+**Decision.** `IntersectionController._enforce_max_hold()` runs every
+tick, independent of any command. If holding has left another approach's
+`red_since` older than `max_hold_ms`, the controller interrupts its own
+hold — `request_phase_change()` to the starved phase (overwriting the
+pending target) — serves it for (at least) its min green, then
+automatically re-requests the original held phase. The `ActiveHold` record
+itself is untouched during the interruption (it's "paused," not
+cancelled); it only clears on explicit `RELEASE` or `hold_until` expiry.
+
+**Consequences.** This is enforced with zero central involvement — it
+can't be, and doesn't need to be: `request_phase_change()` is the same
+safe, timing-respecting primitive every other phase change in the system
+uses, so the interruption and resumption both go through the normal
+GREEN→AMBER→ALL-RED→GREEN sequence like anything else. The stateful and
+full-simulation safety tests exercise this directly (holds with artificially
+short `max_hold_ms`), and the InvariantChecker's INV-06 check is what
+would catch a regression here.
+
+---
+
+## ADR-015: Idempotency store bound — last N keys, not a time window
+
+**Context.** INV-09 requires every idempotency key to execute at most
+once, but a controller can't remember every key forever (unbounded
+memory over a long-running process).
+
+**Decision.** `idempotency_store_size` (default 1000) bounds the
+controller's idempotency cache as a simple FIFO: the oldest key is evicted
+once the store is full. A time-window bound (e.g. "last N minutes") was
+considered and rejected: it would require the controller to read the
+clock proactively (nothing else in the state machine does — time only
+ever arrives via `now` parameters), and a command count bound is also a
+tighter, more predictable memory bound than a time bound would be under
+bursty traffic. 1000 is generously larger than any plausible number of
+in-flight commands for one intersection within the time a duplicate could
+realistically arrive (network retries happen within seconds, not after
+1000 other commands).
+
+**Consequences.** A key evicted from the store and then resent would be
+treated as new — a theoretical reproduction window, but one that would
+require 1000 distinct commands to the same intersection between the
+original and the retry, far outside any realistic duplicate-delivery
+scenario (network retries/duplicates happen within the latency/jitter
+window, milliseconds to low seconds).
+
+---
+
+## ADR-016: Stale-view policy — flag, never block
+
+**Context.** PRD §10.8 B1 check 7 asks what the supervisor should do with
+an old view: reject, or approve-with-a-flag?
+
+**Decision.** An old view never blocks approval — `Decision.view_stale`
+is set, but the command still passes if every other check passes. This
+follows directly from ADR-011: the supervisor's view staleness is
+precisely the thing the controller guard exists to be immune to. Rejecting
+on staleness alone would make the whole system fail closed on nothing more
+than ordinary network latency, which contradicts "a crash, network loss or
+bad data may make the ambulance slower, but can never make an intersection
+unsafe" — slow data should cost time, not availability.
+
+**Consequences.** `view_stale=true` is available for the "why" log and
+the future health monitor to surface ("approved on a 4s-old view") without
+being a rejection reason. Exact safety is still guaranteed because the
+controller guard doesn't care what the supervisor's view said — it checks
+its own current state.
+
+---
+
+## ADR-017: Hold policy — reject, don't cap, an over-long or over-projected hold
+
+**Context.** PRD §10.8 B1 check 5 explicitly asks to choose reject or cap
+for two related checks: a single command's hold exceeding `lease_duration_s`,
+and the *projected* red time of a conflicting approach exceeding
+`max_hold_s`.
+
+**Decision.** Both REJECT (`HOLD_TOO_LONG`, `MAX_HOLD_EXCEEDED`) rather
+than silently truncating the requested hold. A cap means the caller
+believes they got what they asked for and finds out only later (or never)
+that they didn't — for a safety-adjacent system, "tell the caller exactly
+what happened" beats "do something slightly different than requested
+without saying so." A command wanting a longer hold than policy allows
+should renew instead (that's what `RENEW` is for) or ask for less.
+
+**Consequences.** Callers (eventually the corridor planner, Phase 6) must
+handle `HOLD_TOO_LONG`/`MAX_HOLD_EXCEEDED` as real rejections and retry
+with a shorter hold or a renewal strategy, rather than assuming their
+request was honoured in spirit. The projection itself —
+`(hold_until - reported red_since) + view_age` — adds the view's own
+staleness as a conservative margin, so a borderline-stale view errs toward
+rejecting rather than under-estimating the real projected hold.
+
+---
+
+## ADR-018: Minimal pedestrian model — a floor on green duration, not a full phase
+
+**Context.** PRD §10.8 A4 asks for "a minimal pedestrian model" so
+clearance checks are honest, without building a full WALK/flashing-don't-
+walk signal head simulation.
+
+**Decision.** A pedestrian call for a phase (generated by the physical
+world, `sim/pedestrians.py`, never inside the pure/RNG-free state machine)
+either activates immediately (if that phase is already green) or waits as
+"pending" until that phase's next green. Once active,
+`ped_service_end_at = call_time + ped_walk_ms + phase.ped_clearance_ms`
+becomes an unconditional floor on how early GREEN may end — overriding
+even a pending phase-change request, so a preemption can defer a
+pedestrian clearance's *start* but never cut a clearance already running
+short. There is no separate WALK/flashing-don't-walk signal state modelled;
+the floor is purely a timing constraint on the existing GREEN state.
+
+**Consequences.** This is enough to make INV-05 ("pedestrian clearance
+never cut short") a real, testable guarantee without modelling a second
+signal head per approach. What it doesn't capture: a real ped head's
+WALK/flashing-don't-walk DISPLAY, or pedestrian clearance extending past
+the vehicle green into amber/all-red (real signals sometimes time
+clearance to finish during the vehicle amber) — here clearance is entirely
+contained within the green window, a deliberate simplification.
+
+---
+
+## ADR-019: Invariant checker independence, and its FLASHING_RED exemptions
+
+**Context.** The checker's job is to catch bugs in the controller/
+supervisor, so it must never simply trust what they report — but it also
+shouldn't flag *correct* fail-safe behaviour as a violation. The 10,000-
+example Hypothesis property test (Part D2) found exactly this: entering
+`FLASHING_RED` legitimately cuts short whatever amber/all-red/min-green/
+pedestrian-clearance window was in progress, since a conflict monitor
+forcing flashing red is the system's ultimate override and must not wait
+for anything.
+
+**Decision.** `InvariantChecker` re-derives every invariant from
+first-hand observation — `signal_view()` for INV-01, consecutive
+`state_machine.transitions` pairs for INV-02/03/04, `command_log` replayed
+through the checker's OWN copy of `verify()` for INV-09/10 — rather than
+reading any controller- or supervisor-computed verdict. INV-02/03/04/05
+explicitly skip the check when the transition being evaluated enters
+`FLASHING_RED`; INV-06 (max hold) is skipped entirely while a controller is
+already in `FLASHING_RED`, since "every direction is red indefinitely" is
+a different failure mode than a hold starving an approach.
+
+**Consequences.** The mutation tests (Part D5) prove this independence
+concretely: disabling the controller's own approval check or idempotency
+store, or corrupting its timing data, still gets caught, because the
+checker never asked the controller whether it did the right thing — it
+measured.

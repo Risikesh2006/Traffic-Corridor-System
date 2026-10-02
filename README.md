@@ -11,13 +11,16 @@ Guide for AI coding sessions: [`CLAUDE.md`](CLAUDE.md).
 
 ## Status
 
-Phase 2 complete: a deterministic, headless-runnable simulation — background
-traffic, signal cycling, a simulated ambulance, sensors, GPS feed, and a
-faulty network, all composed in `backend/sim/engine.py`. No routing,
-preemption, or safety supervisor exists yet (Phases 3+); the ambulance just
-follows a manually supplied route and obeys normal signals. See
-`docs/baseline_example.txt` for a sample run and `docs/PRD.md` §22
-(Delivery Phases) for the full build plan.
+Phase 3 complete: the two-layer safety architecture — a central
+`SafetySupervisor` (policy) and a local controller guard (exact timing),
+connected only through a fail-closed `SafeSignalLink` gate with HMAC-signed
+approvals, plus an independent `InvariantChecker` that never trusts either
+layer's own verdict. Proven with property-based (10,000 examples), stateful,
+full-simulation, and mutation testing — see `docs/safety_report_example.txt`
+for a 20-seed evidence run (0 violations). There is still no routing or
+corridor planning (Phases 5+); the ambulance follows a manually supplied
+route and commands are sent manually in tests/scripts. See `docs/PRD.md`
+§22 (Delivery Phases) for the full build plan.
 
 ## Repository structure
 
@@ -75,6 +78,16 @@ python -m backend.scripts.run_sim --seed 4417 --minutes 10 --peak \
 Prints vehicle conservation, queue stats, ambulance stop/travel-time
 metrics, and a `state_hash` for determinism checks. Sample output:
 `docs/baseline_example.txt`.
+
+### Running the safety evidence report
+```bash
+# from the repo root, with the backend venv active
+python -m backend.scripts.safety_report --seeds 20 --minutes 10
+```
+Runs the real simulation with a chaotic commander (random PREEMPT/RENEW/
+RELEASE through the safety gate) and a faulty network, across N seeds.
+Prints command/rejection counts, invariant violations (must be 0), and
+supervisor validation latency. Sample output: `docs/safety_report_example.txt`.
 
 ### Developer map (live debug view)
 ```bash
