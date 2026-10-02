@@ -93,6 +93,12 @@ class InvariantChecker:
             cur, nxt = transitions[i], transitions[i + 1]
             duration = nxt.at - cur.at
 
+            if nxt.to_state == SignalState.FLASHING_RED:
+                # Entering the fail-safe override is deliberately allowed to
+                # cut any state short — that's the whole point of a conflict
+                # monitor forcing flashing red. Not a timing violation.
+                continue
+
             if cur.to_state == SignalState.GREEN and cur.phase_id in phases:
                 min_green = phases[cur.phase_id].min_green_ms
                 if duration < min_green:
@@ -127,7 +133,7 @@ class InvariantChecker:
     ) -> None:
         sm = controller.state_machine
         if sm.ped_service_end_at is not None and now < sm.ped_service_end_at:
-            if sm.state != SignalState.GREEN:
+            if sm.state not in (SignalState.GREEN, SignalState.FLASHING_RED):
                 self._record(
                     node_id, now, "INV-05",
                     f"left GREEN at {now}ms while pedestrian service still active "
@@ -139,6 +145,11 @@ class InvariantChecker:
     def _check_max_hold(
         self, node_id: str, controller: IntersectionController, now: SimTimeMs
     ) -> None:
+        if controller.state_machine.state == SignalState.FLASHING_RED:
+            # A fail-safe condition, not a hold — every direction is "red"
+            # indefinitely by design (ADR: no auto-recovery this phase),
+            # which isn't the max-hold policy this invariant is about.
+            return
         tolerance_ms = self.settings.sim_tick_ms  # one tick of slack, per PRD §12
         for direction, since in controller.state_machine.red_since.items():
             red_for = now - since
