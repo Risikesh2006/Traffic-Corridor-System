@@ -147,6 +147,45 @@ def test_request_phase_change_unknown_phase_rejected():
     assert result.reason == "unknown_phase"
 
 
+def test_requesting_the_already_current_phase_holds_it_past_configured_green():
+    """A hold is 'requesting to stay' — without this, a preemption that
+    lands on an already-green phase would silently expire at that phase's
+    normal configured green_ms instead of actually holding it."""
+    node = _b2_intersection()
+    sm = IntersectionStateMachine(node)
+    phase = sm.current_phase()
+    configured_green_ms = next(
+        e.green_ms for e in node.default_plan if e.phase_id == sm.current_phase_id
+    )
+    sm.request_phase_change(sm.current_phase_id, now=0)
+
+    t = configured_green_ms + 5000  # well past the phase's normal green share
+    sm.tick(t)
+    assert sm.state == SignalState.GREEN
+    assert sm.current_phase_id == phase.id
+
+
+def test_clear_pending_request_resumes_normal_cycling():
+    node = _b2_intersection()
+    sm = IntersectionStateMachine(node)
+    held_phase_id = sm.current_phase_id
+    configured_green_ms = next(
+        e.green_ms for e in node.default_plan if e.phase_id == held_phase_id
+    )
+    sm.request_phase_change(held_phase_id, now=0)
+    sm.tick(configured_green_ms + 5000)
+    assert sm.state == SignalState.GREEN  # still held
+
+    sm.clear_pending_request()
+    t = configured_green_ms + 5000
+    for _ in range(200):
+        t += 100
+        sm.tick(t)
+        if sm.state != SignalState.GREEN:
+            break
+    assert sm.state == SignalState.AMBER  # resumed cycling away
+
+
 def test_conflicting_greens_trigger_flashing_red():
     movements = [Direction.N, Direction.S, Direction.E, Direction.W]
     matrix = ConflictMatrix(

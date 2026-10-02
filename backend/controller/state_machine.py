@@ -237,19 +237,28 @@ class IntersectionStateMachine:
 
     def request_phase_change(self, target_phase_id: str, now: SimTimeMs) -> PhaseChangeResult:
         """Safely request a change to `target_phase_id`. Never bypasses
-        timing rules — only ever defers. Used directly by tests today;
-        preemption (Phase 6) will call this same method."""
+        timing rules — only ever defers. This is also how a hold is
+        maintained: requesting the already-current phase still sets it as
+        the pending target, which is what stops the state machine from
+        rotating away once the phase's normal configured green_ms elapses
+        (see `_green_ready_at`) — a hold is "requesting to stay"."""
         if target_phase_id not in self._phases:
             return PhaseChangeResult(accepted=False, earliest_green_at=None, reason="unknown_phase")
         if self.state == SignalState.FLASHING_RED:
             return PhaseChangeResult(accepted=False, earliest_green_at=None, reason="flashing")
 
+        self._pending_target_phase_id = target_phase_id
         if self.current_phase_id == target_phase_id and self.state == SignalState.GREEN:
             return PhaseChangeResult(accepted=True, earliest_green_at=self.phase_started_at)
 
-        self._pending_target_phase_id = target_phase_id
         earliest = self._earliest_green_at(target_phase_id, now)
         return PhaseChangeResult(accepted=True, earliest_green_at=earliest)
+
+    def clear_pending_request(self) -> None:
+        """Releases any pending target set by request_phase_change(),
+        resuming normal round-robin cycling from the current phase forward
+        (ADR-010). Used when a hold is released or expires."""
+        self._pending_target_phase_id = None
 
     def _earliest_green_at(self, target_phase_id: str, now: SimTimeMs) -> SimTimeMs:
         target_phase = self.phase(target_phase_id)
