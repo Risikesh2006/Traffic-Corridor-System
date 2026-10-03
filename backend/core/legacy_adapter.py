@@ -106,7 +106,7 @@ def _adapt_phases(
     for direction in sorted(grouped, key=lambda d: d.value):
         green_ms = max(
             (
-                general_phase.min_green_ms
+                general_phase.configured_green_ms
                 for general_phase in junction.phases
                 if any(m.id in general_phase.movement_ids for m in grouped[direction])
             ),

@@ -58,7 +58,8 @@
           "movement_ids": [
             "A1-E-to-S"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -69,7 +70,8 @@
           "movement_ids": [
             "A1-S-to-E"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -176,7 +178,8 @@
             "A2-E-to-N",
             "A2-E-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -188,7 +191,8 @@
             "A2-N-to-E",
             "A2-N-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -200,7 +204,8 @@
             "A2-S-to-E",
             "A2-S-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -307,7 +312,8 @@
             "A3-E-to-N",
             "A3-E-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -319,7 +325,8 @@
             "A3-N-to-E",
             "A3-N-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -331,7 +338,8 @@
             "A3-S-to-E",
             "A3-S-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -438,7 +446,8 @@
             "A4-E-to-N",
             "A4-E-to-S"
           ],
-          "min_green_ms": 30857,
+          "min_green_ms": 10000,
+          "configured_green_ms": 30857,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -450,7 +459,8 @@
             "A4-N-to-E",
             "A4-N-to-S"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -462,7 +472,8 @@
             "A4-S-to-E",
             "A4-S-to-N"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -569,7 +580,8 @@
             "A5-E-to-N",
             "A5-E-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -581,7 +593,8 @@
             "A5-N-to-E",
             "A5-N-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -593,7 +606,8 @@
             "A5-S-to-E",
             "A5-S-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -658,7 +672,8 @@
           "movement_ids": [
             "A6-E-to-N"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -669,7 +684,8 @@
           "movement_ids": [
             "A6-N-to-E"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -776,7 +792,8 @@
             "B1-E-to-S",
             "B1-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -788,7 +805,8 @@
             "B1-S-to-E",
             "B1-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -800,7 +818,8 @@
             "B1-W-to-E",
             "B1-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -962,6 +981,7 @@
             "B2-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -975,7 +995,8 @@
             "B2-W-to-E",
             "B2-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -989,7 +1010,8 @@
             "B2-S-to-N",
             "B2-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1001,6 +1023,7 @@
             "B2-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1012,6 +1035,7 @@
             "B2-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1023,6 +1047,7 @@
             "B2-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1184,6 +1209,7 @@
             "B3-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1197,7 +1223,8 @@
             "B3-W-to-E",
             "B3-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1211,7 +1238,8 @@
             "B3-S-to-N",
             "B3-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1223,6 +1251,7 @@
             "B3-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1234,6 +1263,7 @@
             "B3-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1245,6 +1275,7 @@
             "B3-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1406,6 +1437,7 @@
             "B4-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1419,7 +1451,8 @@
             "B4-W-to-E",
             "B4-W-to-N"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1433,7 +1466,8 @@
             "B4-S-to-N",
             "B4-S-to-W"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1445,6 +1479,7 @@
             "B4-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1456,6 +1491,7 @@
             "B4-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1467,6 +1503,7 @@
             "B4-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1628,6 +1665,7 @@
             "B5-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1641,7 +1679,8 @@
             "B5-W-to-E",
             "B5-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1655,7 +1694,8 @@
             "B5-S-to-N",
             "B5-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1667,6 +1707,7 @@
             "B5-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1678,6 +1719,7 @@
             "B5-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1689,6 +1731,7 @@
             "B5-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1795,7 +1838,8 @@
             "B6-E-to-N",
             "B6-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1807,7 +1851,8 @@
             "B6-N-to-E",
             "B6-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1819,7 +1864,8 @@
             "B6-W-to-E",
             "B6-W-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1926,7 +1972,8 @@
             "C1-E-to-S",
             "C1-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1938,7 +1985,8 @@
             "C1-S-to-E",
             "C1-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -1950,7 +1998,8 @@
             "C1-W-to-E",
             "C1-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2112,6 +2161,7 @@
             "C2-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2125,7 +2175,8 @@
             "C2-W-to-E",
             "C2-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2139,7 +2190,8 @@
             "C2-S-to-N",
             "C2-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2151,6 +2203,7 @@
             "C2-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2162,6 +2215,7 @@
             "C2-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2173,6 +2227,7 @@
             "C2-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2334,6 +2389,7 @@
             "C3-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2347,7 +2403,8 @@
             "C3-W-to-E",
             "C3-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2361,7 +2418,8 @@
             "C3-S-to-N",
             "C3-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2373,6 +2431,7 @@
             "C3-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2384,6 +2443,7 @@
             "C3-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2395,6 +2455,7 @@
             "C3-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2556,6 +2617,7 @@
             "C4-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2569,7 +2631,8 @@
             "C4-W-to-E",
             "C4-W-to-N"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2583,7 +2646,8 @@
             "C4-S-to-N",
             "C4-S-to-W"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2595,6 +2659,7 @@
             "C4-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2606,6 +2671,7 @@
             "C4-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2617,6 +2683,7 @@
             "C4-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2778,6 +2845,7 @@
             "C5-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2791,7 +2859,8 @@
             "C5-W-to-E",
             "C5-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2805,7 +2874,8 @@
             "C5-S-to-N",
             "C5-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2817,6 +2887,7 @@
             "C5-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2828,6 +2899,7 @@
             "C5-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2839,6 +2911,7 @@
             "C5-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2945,7 +3018,8 @@
             "C6-E-to-N",
             "C6-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2957,7 +3031,8 @@
             "C6-N-to-E",
             "C6-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -2969,7 +3044,8 @@
             "C6-W-to-E",
             "C6-W-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3076,7 +3152,8 @@
             "D1-E-to-S",
             "D1-E-to-W"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3088,7 +3165,8 @@
             "D1-S-to-E",
             "D1-S-to-W"
           ],
-          "min_green_ms": 30857,
+          "min_green_ms": 10000,
+          "configured_green_ms": 30857,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3100,7 +3178,8 @@
             "D1-W-to-E",
             "D1-W-to-S"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3262,6 +3341,7 @@
             "D2-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3275,7 +3355,8 @@
             "D2-W-to-E",
             "D2-W-to-N"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3289,7 +3370,8 @@
             "D2-S-to-N",
             "D2-S-to-W"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3301,6 +3383,7 @@
             "D2-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3312,6 +3395,7 @@
             "D2-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3323,6 +3407,7 @@
             "D2-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3484,6 +3569,7 @@
             "D3-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3497,7 +3583,8 @@
             "D3-W-to-E",
             "D3-W-to-N"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3511,7 +3598,8 @@
             "D3-S-to-N",
             "D3-S-to-W"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3523,6 +3611,7 @@
             "D3-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3534,6 +3623,7 @@
             "D3-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3545,6 +3635,7 @@
             "D3-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3706,6 +3797,7 @@
             "D4-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3719,7 +3811,8 @@
             "D4-W-to-E",
             "D4-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3733,7 +3826,8 @@
             "D4-S-to-N",
             "D4-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3745,6 +3839,7 @@
             "D4-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3756,6 +3851,7 @@
             "D4-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3767,6 +3863,7 @@
             "D4-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3928,6 +4025,7 @@
             "D5-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3941,7 +4039,8 @@
             "D5-W-to-E",
             "D5-W-to-N"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3955,7 +4054,8 @@
             "D5-S-to-N",
             "D5-S-to-W"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3967,6 +4067,7 @@
             "D5-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3978,6 +4079,7 @@
             "D5-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -3989,6 +4091,7 @@
             "D5-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4095,7 +4198,8 @@
             "D6-E-to-N",
             "D6-E-to-W"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4107,7 +4211,8 @@
             "D6-N-to-E",
             "D6-N-to-W"
           ],
-          "min_green_ms": 30857,
+          "min_green_ms": 10000,
+          "configured_green_ms": 30857,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4119,7 +4224,8 @@
             "D6-W-to-E",
             "D6-W-to-N"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4226,7 +4332,8 @@
             "E1-E-to-S",
             "E1-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4238,7 +4345,8 @@
             "E1-S-to-E",
             "E1-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4250,7 +4358,8 @@
             "E1-W-to-E",
             "E1-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4412,6 +4521,7 @@
             "E2-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4425,7 +4535,8 @@
             "E2-W-to-E",
             "E2-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4439,7 +4550,8 @@
             "E2-S-to-N",
             "E2-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4451,6 +4563,7 @@
             "E2-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4462,6 +4575,7 @@
             "E2-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4473,6 +4587,7 @@
             "E2-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4634,6 +4749,7 @@
             "E3-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4647,7 +4763,8 @@
             "E3-W-to-E",
             "E3-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4661,7 +4778,8 @@
             "E3-S-to-N",
             "E3-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4673,6 +4791,7 @@
             "E3-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4684,6 +4803,7 @@
             "E3-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4695,6 +4815,7 @@
             "E3-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4856,6 +4977,7 @@
             "E4-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4869,7 +4991,8 @@
             "E4-W-to-E",
             "E4-W-to-N"
           ],
-          "min_green_ms": 16200,
+          "min_green_ms": 10000,
+          "configured_green_ms": 16200,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4883,7 +5006,8 @@
             "E4-S-to-N",
             "E4-S-to-W"
           ],
-          "min_green_ms": 10800,
+          "min_green_ms": 10000,
+          "configured_green_ms": 10800,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4895,6 +5019,7 @@
             "E4-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4906,6 +5031,7 @@
             "E4-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -4917,6 +5043,7 @@
             "E4-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5078,6 +5205,7 @@
             "E5-E-to-N"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5091,7 +5219,8 @@
             "E5-W-to-E",
             "E5-W-to-N"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5105,7 +5234,8 @@
             "E5-S-to-N",
             "E5-S-to-W"
           ],
-          "min_green_ms": 13500,
+          "min_green_ms": 10000,
+          "configured_green_ms": 13500,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5117,6 +5247,7 @@
             "E5-N-to-W"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5128,6 +5259,7 @@
             "E5-S-to-E"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5139,6 +5271,7 @@
             "E5-W-to-S"
           ],
           "min_green_ms": 10000,
+          "configured_green_ms": 10000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5245,7 +5378,8 @@
             "E6-E-to-N",
             "E6-E-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5257,7 +5391,8 @@
             "E6-N-to-E",
             "E6-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5269,7 +5404,8 @@
             "E6-W-to-E",
             "E6-W-to-N"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5334,7 +5470,8 @@
           "movement_ids": [
             "F1-S-to-W"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5345,7 +5482,8 @@
           "movement_ids": [
             "F1-W-to-S"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5452,7 +5590,8 @@
             "F2-N-to-S",
             "F2-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5464,7 +5603,8 @@
             "F2-S-to-N",
             "F2-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5476,7 +5616,8 @@
             "F2-W-to-N",
             "F2-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5583,7 +5724,8 @@
             "F3-N-to-S",
             "F3-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5595,7 +5737,8 @@
             "F3-S-to-N",
             "F3-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5607,7 +5750,8 @@
             "F3-W-to-N",
             "F3-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5714,7 +5858,8 @@
             "F4-N-to-S",
             "F4-N-to-W"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5726,7 +5871,8 @@
             "F4-S-to-N",
             "F4-S-to-W"
           ],
-          "min_green_ms": 20571,
+          "min_green_ms": 10000,
+          "configured_green_ms": 20571,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5738,7 +5884,8 @@
             "F4-W-to-N",
             "F4-W-to-S"
           ],
-          "min_green_ms": 30857,
+          "min_green_ms": 10000,
+          "configured_green_ms": 30857,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5845,7 +5992,8 @@
             "F5-N-to-S",
             "F5-N-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5857,7 +6005,8 @@
             "F5-S-to-N",
             "F5-S-to-W"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5869,7 +6018,8 @@
             "F5-W-to-N",
             "F5-W-to-S"
           ],
-          "min_green_ms": 24000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 24000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5934,7 +6084,8 @@
           "movement_ids": [
             "F6-N-to-W"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000
@@ -5945,7 +6096,8 @@
           "movement_ids": [
             "F6-W-to-N"
           ],
-          "min_green_ms": 39000,
+          "min_green_ms": 10000,
+          "configured_green_ms": 39000,
           "amber_ms": 4000,
           "all_red_ms": 2000,
           "ped_clearance_ms": 7000

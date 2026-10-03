@@ -105,7 +105,8 @@ def test_splits_and_cycle_are_within_configured_bounds(bearings):
     settings = _settings()
     phases = generate_phases(_junction(bearings), settings)
     for phase in phases:
-        assert settings.min_green_ms <= phase.min_green_ms <= settings.phase_green_max_ms
+        assert phase.min_green_ms == settings.min_green_ms
+        assert settings.min_green_ms <= phase.configured_green_ms <= settings.phase_green_max_ms
     total = cycle_ms(phases)
     assert settings.cycle_min_ms <= total <= settings.cycle_max_ms
 
@@ -119,7 +120,7 @@ def test_busier_approach_gets_a_longer_green():
     phases = generate_phases(junction, _settings())
     north = [p for p in phases if any(m.startswith("N-") for m in p.movement_ids)][0]
     others = [p for p in phases if p is not north]
-    assert all(north.min_green_ms >= o.min_green_ms for o in others)
+    assert all(north.configured_green_ms >= o.configured_green_ms for o in others)
 
 
 def test_only_signalised_junctions_get_phases():

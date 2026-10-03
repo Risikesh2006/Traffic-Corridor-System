@@ -146,14 +146,17 @@ def generate_phases(junction: Junction, settings: Settings) -> tuple[JunctionPha
     total_weight = sum(weights)
     phases: list[JunctionPhase] = []
     for index, (group, weight) in enumerate(zip(ordered, weights, strict=True)):
-        green = round(green_total * weight / total_weight)
-        green = min(max(green, settings.min_green_ms), settings.phase_green_max_ms)
+        configured_green = round(green_total * weight / total_weight)
+        configured_green = min(
+            max(configured_green, settings.min_green_ms), settings.phase_green_max_ms
+        )
         phases.append(
             JunctionPhase(
                 id=f"{junction.id}-P{index + 1}",
                 intersection_id=junction.id,
                 movement_ids=group,
-                min_green_ms=green,
+                min_green_ms=settings.min_green_ms,
+                configured_green_ms=configured_green,
                 amber_ms=amber,
                 all_red_ms=all_red,
                 ped_clearance_ms=settings.ped_clearance_ms,
@@ -169,4 +172,7 @@ def generate_phases(junction: Junction, settings: Settings) -> tuple[JunctionPha
 
 
 def cycle_ms(phases: tuple[JunctionPhase, ...]) -> SimTimeMs:
-    return sum(p.min_green_ms + p.amber_ms + p.all_red_ms for p in phases)
+    """The normal (non-preempted) cycle length: each phase's CONFIGURED
+    share, not its safety floor — the floor is what a preemption may
+    shorten a green down to, not what the cycle normally allocates."""
+    return sum(p.configured_green_ms + p.amber_ms + p.all_red_ms for p in phases)

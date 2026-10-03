@@ -48,15 +48,33 @@ class Movement(BaseModel):
 
 
 class JunctionPhase(BaseModel):
+    """`min_green_ms` is the hard safety floor (never shortened below this,
+    regardless of any request): the same constant for every phase, from
+    `settings.min_green_ms`. `configured_green_ms` is the share of the
+    normal (non-preempted) cycle this phase gets when nothing is holding or
+    requesting it — it can be, and normally is, longer than the floor, the
+    same split as the old model's `Phase.min_green_ms` (safety) versus
+    `SignalPlanEntry.green_ms` (the configured cycling share)."""
+
     model_config = ConfigDict(frozen=True)
 
     id: str
     intersection_id: str
     movement_ids: tuple[str, ...]
     min_green_ms: SimTimeMs = Field(gt=0)
+    configured_green_ms: SimTimeMs = Field(gt=0)
     amber_ms: SimTimeMs = Field(gt=0)
     all_red_ms: SimTimeMs = Field(gt=0)
     ped_clearance_ms: SimTimeMs = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _configured_green_at_least_the_floor(self) -> JunctionPhase:
+        if self.configured_green_ms < self.min_green_ms:
+            raise ValueError(
+                f"phase {self.id}: configured_green_ms {self.configured_green_ms} is "
+                f"shorter than its own min_green_ms floor {self.min_green_ms}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _movements_sorted_and_unique(self) -> JunctionPhase:

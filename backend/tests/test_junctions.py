@@ -71,21 +71,36 @@ def test_matrix_pairs_are_deterministic():
 
 
 def test_phase_movements_must_be_sorted_and_unique():
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="sorted"):
         JunctionPhase(
             id="p",
             intersection_id="J",
             movement_ids=("b", "a"),
             min_green_ms=1000,
+            configured_green_ms=1000,
             amber_ms=1000,
             all_red_ms=1000,
         )
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="twice"):
         JunctionPhase(
             id="p",
             intersection_id="J",
             movement_ids=("a", "a"),
             min_green_ms=1000,
+            configured_green_ms=1000,
+            amber_ms=1000,
+            all_red_ms=1000,
+        )
+
+
+def test_configured_green_below_the_floor_is_rejected():
+    with pytest.raises(ValidationError, match="shorter than"):
+        JunctionPhase(
+            id="p",
+            intersection_id="J",
+            movement_ids=("a",),
+            min_green_ms=2000,
+            configured_green_ms=1000,
             amber_ms=1000,
             all_red_ms=1000,
         )
