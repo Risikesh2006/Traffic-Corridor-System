@@ -923,3 +923,14 @@ time, never safety, consistent with ADR-016.
 **Decision.** `core/phasing.py` generates plans from junction geometry. PAIRED phasing is used only at regular four-way junctions, where opposing arms align within `regular_bearing_tolerance_deg` (15 degrees). Otherwise SPLIT phasing is used, one phase per approach. A paired plan is accepted only if it passes the same checks as split: every phase compatible under the conflict matrix, and every non-U-turn movement served. U-turns are excluded at signalised junctions, matching the default in ADR-046. Greens are shared by lane count, with a minimum of `min_green_s` and a maximum of `phase_green_max_s`, and the cycle is `cycle_target_s` clamped to `[cycle_min_s, cycle_max_s]`. Any violation raises `PhasingError`, so an invalid plan is never silently used.
 
 **Consequences.** Plans are reproducible and valid by construction, but they are not calibrated to any real signal. Road-class weighting is not yet used, because the junction model carries lanes only. That weighting is deferred to the importer stage, where road class is available. Any Chennai result must say the timings are generated, not observed.
+
+
+---
+
+## ADR-049: General-format city loader re-derives conflicts rather than trusting stored data
+
+**Context.** The old loader validates authored conflict pairs for symmetry, because a human wrote them. The general model derives conflicts from geometry (ADR-046) and generates phases from that derivation (ADR-048), so there is nothing authored to audit for consistency — but a hand-edited or imported city file could still carry a stale or tampered junction.
+
+**Decision.** `core/general_city_loader.py` re-derives each junction's conflict matrix from its own geometry via `Junction.conflict_matrix()` and checks it is symmetric and irreflexive, checks every phase against that freshly derived matrix (never against anything stored), and checks every non-U-turn movement is served by some phase. It also checks every approach, exit, movement and phase reference stays within its own junction and resolves to a real segment, and that the whole graph is strongly connected, mirroring the old loader's checks but over junctions and segments instead of intersections and compass approaches.
+
+**Consequences.** A city file cannot smuggle in an unsafe phase by editing its phases without also matching the junction's true geometry, because the loader never looks at anything the file claims about conflicts — only what the geometry implies. The generated grid (`config/cities/grid.city.json`) passes this loader, which doubles as an automatic correctness check on `core/phasing.py` and `core/conflicts.py` beyond the unit tests, now proven against a full 36-junction, 120-segment city.

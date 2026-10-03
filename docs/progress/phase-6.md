@@ -5,7 +5,7 @@ Branch: phase-6-real-city
 
 | Stage | Scope | Status |
 |---|---|---|
-| 6.1 | Expand: general model, conflicts, phasing, general grid, loader, adapter | IN PROGRESS (model, conflicts, phasing done) |
+| 6.1 | Expand: general model, conflicts, phasing, general grid, loader, adapter | IN PROGRESS (model, conflicts, phasing, general grid + loader done) |
 | 6.2 | Migrate + contract → Gate A | NOT STARTED |
 | 6.3 | OSM fetch + Chennai build + map viewer → ⛔ Checkpoint B | NOT STARTED |
 | 6.4 | Indian realism, geometry tracking, UTM, calibration, history | NOT STARTED |
@@ -25,11 +25,18 @@ Branch: phase-6-real-city
 - `c84a7f8` refactor(core): `TurnType` and `IntersectionKind` now live in `core/models.py`.
 
 ## Not yet done
-- 6.1.4 general grid + loader, 6.1.5 adapter, loader tests
+- 6.1.5 temporary adapter (`core/legacy_adapter.py`) + exact-equivalence test against the old grid
 - Step 0 remainder: dependency install (osmnx, networkx, shapely, pyproj, geopandas) and an
   ADR recording their versions. Deferred until the importer stage.
 
 - `core/phasing.py` (6.1.3): PAIRED for regular four-way, SPLIT otherwise; validity checks; cycle bounds; ADR-048; `tests/test_phasing.py` (18 tests incl. Hypothesis). Full fast suite: 355 passed.
+
+- `core/general_city.py` + `core/general_city_loader.py` (6.1.4): GeneralCity/GeneralRoadSegment
+  container, loader re-derives conflicts and phase validity from geometry rather than trusting
+  stored data (ADR-049). `scripts/generate_general_grid.py` writes `config/cities/grid.city.json`
+  (36 junctions, 120 segments, 2 hospitals) using the same ADR-003 grid layout as the old
+  `config/city.json`, with compass bearings matching the existing Direction convention.
+  12 loader tests pass. Full fast suite: 367 passed.
 
 ## Session log
 - Session 1: branch `phase-6-real-city` created; spec saved; progress file created; 6.1.1 model and conflict geometry committed. Stopped for session length.
@@ -39,8 +46,11 @@ Branch: phase-6-real-city
   pending until the importer stage; it is not needed for 6.1.
 
 ## Next step
-6.1.4: general-format grid file `config/cities/grid.city.json` and the loader's validation
-(duplicate ids, unknown references, symmetric conflicts, valid phases, served movements,
-hospitals on known nodes, strongly connected, timings within settings). Then 6.1.5 adapter
-(`core/legacy_adapter.py`) and its exact-equivalence test against the old grid. Keep old
-model classes untouched until Stage 6.2.
+6.1.5: `backend/core/legacy_adapter.py` converts a `GeneralCity` built from `grid.city.json`
+into the OLD `core.models.City` shape (intersections with compass Direction approaches,
+authored ConflictMatrix, Phase with Direction movements) so Stage 6.2 can swap the data
+source without changing consumer code yet. Write a test asserting the adapter's output for
+the general grid equals `load_city(config/city.json, settings)` exactly (same intersections,
+segments, phases, conflicts, hospitals, entry node) — this is the proof that the new model
+is a faithful generalisation of the old one before any consumer migrates. Keep old model
+classes untouched; this is the last "expand" step before Stage 6.2 migration begins.
