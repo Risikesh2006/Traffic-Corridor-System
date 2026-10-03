@@ -27,16 +27,16 @@ from core.interfaces import (
     StatusFeed,
     VehicleFeed,
 )
+from core.general_city import GeneralCity
+from core.junctions import Junction
 from core.models import (
-    City,
     ControllerStatus,
-    Direction,
     EmergencyVehicle,
-    Intersection,
     Priority,
     SensorMetric,
     SignalState,
 )
+from core.phasing import cycle_ms as _phase_cycle_ms
 from events.bus import EventBus
 from ingestion.gateway import IngestionGateway
 from routing.context import WorldRoutingContext
@@ -53,7 +53,7 @@ from tracking.tracker import VehicleTracker
 class CentralSystem:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         clock: Clock,
         vehicle_feed: VehicleFeed,
@@ -187,25 +187,41 @@ class CentralSystem:
         headway_ms = round(self.settings.headway_s * 1000)
         startup_ms = self.settings.startup_loss_ms
         worst = 0.0
-        for direction in Direction:
-            estimate = self.world.queue_estimate(intersection_id, direction, now)
+        node = self.city.intersection(intersection_id)
+        for approach in node.approaches:
+            estimate = self.world.queue_estimate(intersection_id, approach.id, now)
             if estimate is not None:
                 worst = max(worst, estimate.value)
         return round(worst * headway_ms) + startup_ms if worst > 0 else 0
 
+    @staticmethod
+    def _approach_id_for_segment(node: Junction, segment_id: str) -> str | None:
+        return next((a.id for a in node.approaches if a.segment_id == segment_id), None)
+
+    @staticmethod
+    def _approaches_served_by(node: Junction, phase_movement_ids: tuple[str, ...]) -> set[str]:
+        approach_of = {m.id: m.approach_id for m in node.movements}
+        return {approach_of[mid] for mid in phase_movement_ids if mid in approach_of}
+
     def _red_wait_ms(self, intersection_id: str, segment_id: str, now: SimTimeMs) -> int:
-        """Time until this approach next turns green, projected forward from the
-        controller's last reported state through its configured default plan.
-        Unknown state falls back to the expected-red-fraction prior: missing
-        data is never treated as a clear road."""
+        """Time until this approach next has any green movement, projected
+        forward from the controller's last reported state through its
+        configured phase cycle. This is approach-level, not movement-level
+        (a finer-grained, per-movement projection is Phase 7's job) --
+        unknown state falls back to the expected-red-fraction prior:
+        missing data is never treated as a clear road."""
         if self._approach_green(intersection_id, segment_id, now):
             return 0
         node = self.city.intersection(intersection_id)
         view = self.world.intersection_view(intersection_id, now)
-        direction = self.city.approach_direction(segment_id)
-        if view.controller_status != ControllerStatus.ONLINE or view.state_started_at is None:
+        approach_id = self._approach_id_for_segment(node, segment_id)
+        if (
+            approach_id is None
+            or view.controller_status != ControllerStatus.ONLINE
+            or view.state_started_at is None
+        ):
             return round(self._cycle_ms(node) * self.settings.eta_expected_red_fraction)
-        phases = [entry.phase_id for entry in node.default_plan]
+        phases = [p.id for p in node.phases]  # the phases' own order is the cycle order
         t = view.state_started_at
         state = view.signal_state
         phase_id = view.current_phase_id
@@ -214,9 +230,8 @@ class CentralSystem:
         index = phases.index(phase_id)
         for _ in range(4 * len(phases)):
             phase = next(p for p in node.phases if p.id == phases[index])
-            green_ms = next(e.green_ms for e in node.default_plan if e.phase_id == phase.id)
             if state == SignalState.GREEN:
-                t += green_ms
+                t += phase.configured_green_ms
                 state = SignalState.AMBER
                 t_amber_end = t + phase.amber_ms
                 t = t_amber_end
@@ -229,18 +244,14 @@ class CentralSystem:
                 next_phase = next(p for p in node.phases if p.id == phases[index])
                 t += next_phase.all_red_ms
                 state = SignalState.GREEN
-                if direction in next_phase.movements:
+                if approach_id in self._approaches_served_by(node, next_phase.movement_ids):
                     return max(0, t - now)
             else:
                 break
         return round(self._cycle_ms(node) * self.settings.eta_expected_red_fraction)
 
-    def _cycle_ms(self, node: Intersection) -> int:
-        total = 0
-        for entry in node.default_plan:
-            phase = next(p for p in node.phases if p.id == entry.phase_id)
-            total += entry.green_ms + phase.amber_ms + phase.all_red_ms
-        return total
+    def _cycle_ms(self, node: Junction) -> int:
+        return _phase_cycle_ms(node.phases)
 
     def _approach_green(self, intersection_id: str, segment_id: str, now: SimTimeMs) -> bool:
         """Unknown counts as red: a stop is the conservative assumption."""
@@ -250,10 +261,13 @@ class CentralSystem:
         if view.signal_state != SignalState.GREEN or view.current_phase_id is None:
             return False
         node = self.city.intersection(intersection_id)
+        approach_id = self._approach_id_for_segment(node, segment_id)
+        if approach_id is None:
+            return False
         phase = next((p for p in node.phases if p.id == view.current_phase_id), None)
         if phase is None:
             return False
-        return self.city.approach_direction(segment_id) in phase.movements
+        return approach_id in self._approaches_served_by(node, phase.movement_ids)
 
     def _stale_fraction(self, route_segments: list[str], now: SimTimeMs) -> float:
         if not route_segments:

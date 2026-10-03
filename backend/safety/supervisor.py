@@ -7,6 +7,12 @@ intersection (`IntersectionView`) — which may be stale. It deliberately
 does NOT try to enforce exact timing (amber/all-red/min-green) itself,
 because its view could be out of date by the time a command arrives; that
 is the controller guard's job, which always has the true, current state.
+
+Migrated to the general junction model (PRD Phase 6 Stage 6.2, ADR-051):
+a preempted phase is validated against movement ids and a
+`JunctionConflictMatrix` derived from geometry, and the hold policy's
+cross-traffic check runs per APPROACH id, matching the controller's
+per-approach `red_since`.
 """
 
 from __future__ import annotations
@@ -16,9 +22,11 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from core.clock import Clock, SimTimeMs
+from core.conflicts import ConflictRules
 from core.config import Settings
 from core.events import Event, EventIdFactory, EventType
-from core.models import City, Command, CommandType, ControllerStatus, Direction
+from core.general_city import GeneralCity
+from core.models import Command, CommandType, ControllerStatus
 from core.reasons import ReasonCode, explain
 from core.security import sign
 
@@ -34,7 +42,7 @@ class IntersectionView:
     controller_status: ControllerStatus
     reported_at: SimTimeMs
     current_phase_id: str | None
-    red_since: dict[Direction, SimTimeMs] = field(default_factory=dict)
+    red_since: dict[str, SimTimeMs] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -48,7 +56,7 @@ class Decision:
 
 class SafetySupervisor:
     def __init__(
-        self, city: City, settings: Settings, clock: Clock, secret: str | None = None
+        self, city: GeneralCity, settings: Settings, clock: Clock, secret: str | None = None
     ) -> None:
         self.city = city
         self.settings = settings
@@ -56,12 +64,18 @@ class SafetySupervisor:
         self._secret = secret if secret is not None else settings.hmac_secret
 
         # Precomputed lookups for <5ms validation (Part B4).
-        self._phase_movements: dict[tuple[str, str], frozenset[Direction]] = {}
+        rules = ConflictRules()
+        self._phase_movements: dict[tuple[str, str], frozenset[str]] = {}
+        self._phase_served_approaches: dict[tuple[str, str], frozenset[str]] = {}
         self._intersection_ids = {n.id for n in city.intersections}
         for node in city.intersections:
+            approach_of = {m.id: m.approach_id for m in node.movements}
             for phase in node.phases:
-                self._phase_movements[(node.id, phase.id)] = frozenset(phase.movements)
-        self._conflict_matrices = {n.id: n.conflict_matrix for n in city.intersections}
+                self._phase_movements[(node.id, phase.id)] = frozenset(phase.movement_ids)
+                self._phase_served_approaches[(node.id, phase.id)] = frozenset(
+                    approach_of[mid] for mid in phase.movement_ids if mid in approach_of
+                )
+        self._conflict_matrices = {n.id: n.conflict_matrix(rules) for n in city.intersections}
 
         self._plan_versions: dict[str, int] = {}
         self._rate_window: dict[str, deque[SimTimeMs]] = {}
@@ -167,8 +181,8 @@ class SafetySupervisor:
                     intersection_id=command.intersection_id,
                 )
             matrix = self._conflict_matrices[command.intersection_id]
-            movements = self._phase_movements[key]
-            if not matrix.is_compatible(set(movements)):
+            movement_ids = self._phase_movements[key]
+            if not matrix.is_compatible(movement_ids):
                 return self._reject(ReasonCode.CONFLICTING_PHASE, phase_id=phase_id)
         return None
 
@@ -208,10 +222,10 @@ class SafetySupervisor:
             return None
         phase_id = command.payload["phase_id"]
         assert isinstance(phase_id, str)
-        held_movements = self._phase_movements[(command.intersection_id, phase_id)]
+        held_approaches = self._phase_served_approaches[(command.intersection_id, phase_id)]
         view_age_ms = max(0, now - view.reported_at)
-        for direction, red_since in view.red_since.items():
-            if direction in held_movements:
+        for approach_id, red_since in view.red_since.items():
+            if approach_id in held_approaches:
                 continue  # expected to be red — that's the point of the hold
             projected_red_ms = (hold_until - red_since) + view_age_ms
             if projected_red_ms > self.settings.max_hold_ms:

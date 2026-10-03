@@ -11,17 +11,18 @@ from collections import Counter
 
 from core.clock import SimTimeMs
 from core.config import Settings
+from core.general_city import GeneralCity
 from core.models import Command, CommandAckStatus, CommandType
 from core.rng import RngFactory
 from safety.gate import SafeSignalLink
 
 _COMMAND_TYPES = (CommandType.PREEMPT, CommandType.RENEW, CommandType.RELEASE)
-_CANDIDATE_PHASES = ("NS_THROUGH", "EW_THROUGH")
 
 
 class ChaoticCommander:
     def __init__(
         self,
+        city: GeneralCity,
         intersection_ids: list[str],
         settings: Settings,
         rng: RngFactory,
@@ -29,6 +30,10 @@ class ChaoticCommander:
         interval_ms: int = 4000,
     ) -> None:
         self._node_ids = sorted(intersection_ids)
+        self._phases_by_node: dict[str, list[str]] = {
+            node_id: sorted(p.id for p in city.intersection(node_id).phases)
+            for node_id in self._node_ids
+        }
         self.settings = settings
         self._rng = rng.stream("chaotic_commander")
         self.gate = gate
@@ -62,7 +67,7 @@ class ChaoticCommander:
             hold_s = self._rng.uniform(5, self.settings.lease_duration_s * 1.5)
             payload["hold_until"] = now + round(hold_s * 1000)
         if command_type == CommandType.PREEMPT:
-            payload["phase_id"] = self._rng.choice(_CANDIDATE_PHASES)
+            payload["phase_id"] = self._rng.choice(self._phases_by_node[node_id])
 
         cmd = Command(
             id=f"chaos-cmd-{self._seq}",

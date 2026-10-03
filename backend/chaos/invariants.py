@@ -6,6 +6,13 @@ invariant held — including re-verifying HMAC approvals with its own copy
 of the secret, rather than trusting the controller's own judgement. This
 is deliberately NOT part of the safety-critical path; it's the harness
 that proves the safety-critical path is working.
+
+Migrated to the general junction model (PRD Phase 6 Stage 6.2, ADR-051):
+INV-01 (no conflicting movements green/amber together) checks MOVEMENT ids
+against a `JunctionConflictMatrix` derived from geometry, independently
+re-derived here (never read from the controller) exactly as before.
+INV-06 (max hold) is now explicitly per APPROACH, matching the controller's
+`red_since`.
 """
 
 from __future__ import annotations
@@ -15,8 +22,11 @@ from dataclasses import dataclass
 from controller.intersection_controller import IntersectionController
 from controller.state_machine import detect_conflict
 from core.clock import SimTimeMs
+from core.conflicts import ConflictRules
 from core.config import Settings
-from core.models import City, CommandAckStatus, Phase, SignalState
+from core.general_city import GeneralCity
+from core.junctions import JunctionConflictMatrix, JunctionPhase
+from core.models import CommandAckStatus, SignalState
 from core.security import verify
 
 
@@ -32,7 +42,7 @@ class Violation:
 class InvariantChecker:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         controllers: dict[str, IntersectionController],
         hmac_secret: str | None = None,
@@ -42,8 +52,12 @@ class InvariantChecker:
         self._controllers = controllers
         self._secret = hmac_secret if hmac_secret is not None else settings.hmac_secret
 
-        self._phase_lookup: dict[str, dict[str, Phase]] = {
+        self._phase_lookup: dict[str, dict[str, JunctionPhase]] = {
             node.id: {p.id: p for p in node.phases} for node in city.intersections
+        }
+        rules = ConflictRules()
+        self._conflict_matrices: dict[str, JunctionConflictMatrix] = {
+            node.id: node.conflict_matrix(rules) for node in city.intersections
         }
 
         self._violations: list[Violation] = []
@@ -72,9 +86,9 @@ class InvariantChecker:
     def _check_conflict(
         self, node_id: str, controller: IntersectionController, now: SimTimeMs
     ) -> None:
-        view = controller.signal_view()
-        active = {d for d, s in view.items() if s in (SignalState.GREEN, SignalState.AMBER)}
-        matrix = self.city.intersection(node_id).conflict_matrix
+        sm = controller.state_machine
+        active = sm.green_movements() | sm.amber_movements()
+        matrix = self._conflict_matrices[node_id]
         reason = detect_conflict(matrix, active)
         if reason is not None:
             self._record(node_id, now, "INV-01", reason)
@@ -159,14 +173,14 @@ class InvariantChecker:
             # which isn't the max-hold policy this invariant is about.
             return
         tolerance_ms = self.settings.sim_tick_ms  # one tick of slack, per PRD §12
-        for direction, since in controller.state_machine.red_since.items():
+        for approach_id, since in controller.state_machine.red_since.items():
             red_for = now - since
             if red_for > self.settings.max_hold_ms + tolerance_ms:
                 self._record(
                     node_id,
                     now,
                     "INV-06",
-                    f"approach {direction} red for {red_for}ms, exceeds max_hold_ms="
+                    f"approach {approach_id} red for {red_for}ms, exceeds max_hold_ms="
                     f"{self.settings.max_hold_ms} (+{tolerance_ms}ms tolerance)",
                 )
 

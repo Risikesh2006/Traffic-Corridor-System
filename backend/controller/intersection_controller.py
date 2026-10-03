@@ -5,6 +5,16 @@ Phase 3, PREEMPT/RENEW/RELEASE commands. This is the controller guard: the
 SECOND, local safety layer (PRD §10.8 Part A2) that re-validates everything
 the Safety Supervisor already approved, because the supervisor's view of
 the world can be stale and this controller's cannot.
+
+Migrated to the general junction model (PRD Phase 6 Stage 6.2, ADR-051):
+reads/reports movement ids and approach ids rather than compass directions.
+`movement_view()` is the precise signal state per movement — the one that
+matters for correctness, since ADR-050 found that two movements from the
+same approach can legitimately be in different phases (a far-side turn
+split from the through/near-side phase). `approach_view()` is a coarser
+per-approach summary (green if ANY of its movements currently show green)
+for callers that only need to know whether an approach has any service at
+all, not which specific turn.
 """
 
 from __future__ import annotations
@@ -16,6 +26,7 @@ from controller.messages import Ping, Pong, Unsupported
 from controller.state_machine import IntersectionStateMachine, Transition
 from core.clock import SimTimeMs
 from core.events import Event, EventIdFactory, EventType
+from core.junctions import Junction
 from core.models import (
     ActiveHoldInfo,
     Command,
@@ -23,8 +34,6 @@ from core.models import (
     CommandAckStatus,
     CommandType,
     ControllerStatus,
-    Direction,
-    Intersection,
     SignalState,
     StatusReport,
 )
@@ -45,7 +54,7 @@ class ActiveHold:
 class IntersectionController:
     def __init__(
         self,
-        intersection: Intersection,
+        intersection: Junction,
         event_ids: EventIdFactory | None = None,
         ped_walk_ms: int = 0,
         max_hold_ms: int = 90_000,
@@ -127,21 +136,45 @@ class IntersectionController:
         events, self.events = self.events, []
         return events
 
-    def signal_view(self) -> dict[Direction, SignalState]:
-        """What the physical signal heads show right now, per approach."""
+    def movement_view(self) -> dict[str, SignalState]:
+        """What each movement currently shows — the precise view, since two
+        movements from the same approach can be in different phases."""
         green = self._sm.green_movements()
         amber = self._sm.amber_movements()
-        view: dict[Direction, SignalState] = {}
-        for approach in self._intersection.approaches:
-            d = approach.direction
+        view: dict[str, SignalState] = {}
+        for movement in self._intersection.movements:
             if self._sm.state == SignalState.FLASHING_RED:
-                view[d] = SignalState.FLASHING_RED
-            elif d in green:
-                view[d] = SignalState.GREEN
-            elif d in amber:
-                view[d] = SignalState.AMBER
+                view[movement.id] = SignalState.FLASHING_RED
+            elif movement.id in green:
+                view[movement.id] = SignalState.GREEN
+            elif movement.id in amber:
+                view[movement.id] = SignalState.AMBER
             else:
-                view[d] = SignalState.ALL_RED
+                view[movement.id] = SignalState.ALL_RED
+        return view
+
+    def approach_view(self) -> dict[str, SignalState]:
+        """Per approach: GREEN if any of its movements show GREEN, else
+        AMBER if any show AMBER, else ALL_RED (or FLASHING_RED). A coarser
+        summary for callers that only need to know an approach has some
+        service, not which specific turn."""
+        movements = self.movement_view()
+        approach_of = {m.id: m.approach_id for m in self._intersection.movements}
+        view: dict[str, SignalState] = {}
+        for approach in self._intersection.approaches:
+            states = {
+                movements[mid]
+                for mid, aid in approach_of.items()
+                if aid == approach.id and mid in movements
+            }
+            if SignalState.FLASHING_RED in states:
+                view[approach.id] = SignalState.FLASHING_RED
+            elif SignalState.GREEN in states:
+                view[approach.id] = SignalState.GREEN
+            elif SignalState.AMBER in states:
+                view[approach.id] = SignalState.AMBER
+            else:
+                view[approach.id] = SignalState.ALL_RED
         return view
 
     @property
@@ -280,48 +313,95 @@ class IntersectionController:
         return self._ack(command, now, CommandAckStatus.EXECUTED, None, effective_at=now)
 
     # -- local max-hold enforcement (INV-06), independent of the supervisor --
+    #
+    # Runs on EVERY tick, whether or not a command hold is active (ADR-053).
+    # With only two phases (every signalised node in the old N/S/E/W model),
+    # resuming normal round-robin rotation after a hold always serves the
+    # starved side within one transition — there was only ever one "other"
+    # group. With more phases, that is no longer true: rotation resumes from
+    # wherever it was interrupted, and several phases can stand between that
+    # point and the one a starved approach needs, even after the hold itself
+    # has expired with no command ever rejected or ignored. So the rescue
+    # must be unconditional, not merely "while a hold is active".
+    #
+    # Two more things are needed for a hold to stay safe when several
+    # approaches starve at once:
+    #   - after rescuing one, check again for MORE starvation before
+    #     resuming the hold (or returning to normal cycling), instead of
+    #     always stopping after exactly one rescue;
+    #   - pick the rescue phase covering the MOST currently-starved
+    #     approaches at once, since one phase can serve several together
+    #     (e.g. a paired through+near-side phase).
+    # Starvation is checked with a lead margin (one worst-case transition
+    # ahead of the hard limit), because detecting it only once the limit is
+    # already reached leaves no time to actually switch the signal before
+    # the limit is exceeded.
 
     def _enforce_max_hold(self, now: SimTimeMs) -> None:
-        if self._active_hold is None:
-            return
-
-        if now >= self._active_hold.hold_until:
+        if self._active_hold is not None and now >= self._active_hold.hold_until:
             self._active_hold = None
             self._hold_interrupted_for = None
             self._sm.clear_pending_request()
-            return
+            # Fall through: still check starvation this same tick.
 
         if self._hold_interrupted_for is not None:
             serving_interrupt = (
                 self._sm.current_phase_id == self._hold_interrupted_for
                 and self._sm.state == SignalState.GREEN
             )
-            if serving_interrupt:
-                phase = self._sm.phase(self._hold_interrupted_for)
-                if now >= self._sm.phase_started_at + phase.min_green_ms:
-                    self._hold_interrupted_for = None
-                    self._sm.request_phase_change(self._active_hold.phase_id, now)
-            return
+            if not serving_interrupt:
+                return  # still transitioning toward the interrupt phase
+            phase = self._sm.phase(self._hold_interrupted_for)
+            if now < self._sm.phase_started_at + phase.min_green_ms:
+                return  # interrupt floor not yet served
+            self._hold_interrupted_for = None
+            # Fall through: check for further starvation before resuming.
 
-        starved = self._find_starved_direction(now)
-        if starved is not None:
-            interrupt_phase = self._phase_for_direction(starved)
-            if interrupt_phase is not None and interrupt_phase != self._active_hold.phase_id:
+        starved = self._find_starved_approaches(now)
+        if starved:
+            exclude = {self._active_hold.phase_id} if self._active_hold is not None else set()
+            interrupt_phase = self._best_interrupt_phase(starved, exclude)
+            if interrupt_phase is not None:
                 self._hold_interrupted_for = interrupt_phase
                 self._sm.request_phase_change(interrupt_phase, now)
+                return
 
-    def _find_starved_direction(self, now: SimTimeMs) -> Direction | None:
-        for direction in sorted(self._sm.red_since):
-            since = self._sm.red_since[direction]
-            if now - since >= self._max_hold_ms:
-                return direction
-        return None
+        # No (more) starvation to rescue: resume the command hold if one is
+        # active, otherwise release any leftover pending target so normal
+        # round-robin cycling continues on its own.
+        if self._active_hold is not None:
+            self._sm.request_phase_change(self._active_hold.phase_id, now)
+        else:
+            self._sm.clear_pending_request()
 
-    def _phase_for_direction(self, direction: Direction) -> str | None:
-        for phase in self._intersection.phases:
-            if direction in phase.movements:
-                return phase.id
-        return None
+    def _rescue_lead_ms(self) -> int:
+        return max(
+            (p.amber_ms + p.all_red_ms + p.min_green_ms for p in self._intersection.phases),
+            default=0,
+        )
+
+    def _find_starved_approaches(self, now: SimTimeMs) -> set[str]:
+        trigger_at = self._max_hold_ms - self._rescue_lead_ms()
+        return {
+            approach_id
+            for approach_id, since in self._sm.red_since.items()
+            if now - since >= trigger_at
+        }
+
+    def _best_interrupt_phase(self, starved: set[str], exclude: set[str]) -> str | None:
+        """The phase (other than any excluded one) covering the most
+        starved approaches at once, so one rescue can resolve several at a
+        time. Ties go to the lowest phase id (sorted iteration, strict >
+        update), for determinism."""
+        best_id: str | None = None
+        best_count = 0
+        for phase in sorted(self._intersection.phases, key=lambda p: p.id):
+            if phase.id in exclude:
+                continue
+            covered = len(self._sm.served_approaches(phase.id) & starved)
+            if covered > best_count:
+                best_id, best_count = phase.id, covered
+        return best_id
 
     # -- helpers --------------------------------------------------------
 

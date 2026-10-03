@@ -9,6 +9,15 @@ Hard safety rule: no transition may shorten min green, amber, or all-red.
 `request_phase_change` is the only way to ask for an early change, and it
 always routes through AMBER -> ALL_RED like every other transition; it can
 only ever be deferred, never granted early.
+
+Migrated to the general junction model (PRD Phase 6 Stage 6.2, ADR-051):
+phases are sets of MOVEMENT ids (`JunctionPhase.movement_ids`), not compass
+directions, and red time is tracked per APPROACH (an approach is "green"
+when any of its movements is in the current phase's movement set) — this
+is what the spec calls for ("red_since tracked per APPROACH") and what
+INV-06 (per-approach max hold) needs. The conflict check runs over
+`JunctionConflictMatrix`, derived from geometry (ADR-046), not an authored
+compass-direction table.
 """
 
 from __future__ import annotations
@@ -16,7 +25,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core.clock import SimTimeMs
-from core.models import ConflictMatrix, Direction, Intersection, Phase, SignalState
+from core.conflicts import ConflictRules
+from core.junctions import Junction, JunctionConflictMatrix, JunctionPhase
+from core.models import SignalState
 
 
 class ControllerError(Exception):
@@ -43,25 +54,37 @@ class Transition:
 class IntersectionStateMachine:
     """Pure, deterministic signal state machine for one intersection."""
 
-    def __init__(self, intersection: Intersection, ped_walk_ms: int = 0) -> None:
+    def __init__(self, intersection: Junction, ped_walk_ms: int = 0) -> None:
         if not intersection.phases:
             raise ControllerError(f"intersection {intersection.id} has no phases")
-        if not intersection.default_plan:
-            raise ControllerError(f"intersection {intersection.id} has no default_plan")
 
         self.intersection_id = intersection.id
-        self._phases: dict[str, Phase] = {p.id: p for p in intersection.phases}
-        self._cycle: list[str] = [e.phase_id for e in intersection.default_plan]
+        self._phases: dict[str, JunctionPhase] = {p.id: p for p in intersection.phases}
+        # The order phases were generated in is the round-robin cycle order
+        # (the general model has no separate default_plan; a phase's own
+        # configured_green_ms is its share of that cycle).
+        self._cycle: list[str] = [p.id for p in intersection.phases]
         self._configured_green_ms: dict[str, int] = {
-            e.phase_id: e.green_ms for e in intersection.default_plan
+            p.id: p.configured_green_ms for p in intersection.phases
         }
-        for phase_id in self._cycle:
-            if phase_id not in self._phases:
-                raise ControllerError(
-                    f"intersection {intersection.id}: default_plan references unknown phase "
-                    f"'{phase_id}'"
-                )
-        self._conflict_matrix = intersection.conflict_matrix
+        self._conflict_matrix: JunctionConflictMatrix = intersection.conflict_matrix(
+            _default_rules()
+        )
+
+        # movement id -> approach id, and phase id -> the set of approach ids
+        # it serves (green), derived once from the junction's own geometry.
+        self._approach_of_movement: dict[str, str] = {
+            m.id: m.approach_id for m in intersection.movements
+        }
+        self._approaches_served: dict[str, frozenset[str]] = {
+            phase.id: frozenset(
+                self._approach_of_movement[mid]
+                for mid in phase.movement_ids
+                if mid in self._approach_of_movement
+            )
+            for phase in intersection.phases
+        }
+        self._all_approach_ids: list[str] = sorted(a.id for a in intersection.approaches)
 
         first_phase_id = self._cycle[0]
         self.state: SignalState = SignalState.GREEN
@@ -85,20 +108,20 @@ class IntersectionStateMachine:
         self._ped_call_pending: dict[str, bool] = dict.fromkeys(self._phases, False)
         self.ped_service_end_at: SimTimeMs | None = None
 
-        # Per-approach direction: when it most recently became red (None if
-        # currently green/amber for that direction). Used for max-hold later.
-        self.red_since: dict[Direction, SimTimeMs] = {}
-        self._init_red_since(intersection, at=0)
+        # Per-approach: when it most recently became red (None if currently
+        # served/green for that approach). Used for max-hold enforcement.
+        self.red_since: dict[str, SimTimeMs] = {}
+        self._init_red_since(at=0)
 
         self.transitions: list[Transition] = []
 
     # -- introspection -----------------------------------------------------
 
-    def current_phase(self) -> Phase:
+    def current_phase(self) -> JunctionPhase:
         assert self.current_phase_id is not None
         return self._phases[self.current_phase_id]
 
-    def phase(self, phase_id: str) -> Phase:
+    def phase(self, phase_id: str) -> JunctionPhase:
         if phase_id not in self._phases:
             raise ControllerError(f"unknown phase '{phase_id}'")
         return self._phases[phase_id]
@@ -106,15 +129,19 @@ class IntersectionStateMachine:
     def has_phase(self, phase_id: str) -> bool:
         return phase_id in self._phases
 
-    def green_movements(self) -> set[Direction]:
+    def green_movements(self) -> set[str]:
         if self.state == SignalState.GREEN and self.current_phase_id is not None:
-            return set(self.current_phase().movements)
+            return set(self.current_phase().movement_ids)
         return set()
 
-    def amber_movements(self) -> set[Direction]:
+    def amber_movements(self) -> set[str]:
         if self.state == SignalState.AMBER and self.current_phase_id is not None:
-            return set(self.current_phase().movements)
+            return set(self.current_phase().movement_ids)
         return set()
+
+    def served_approaches(self, phase_id: str) -> frozenset[str]:
+        """Approach ids this phase serves (i.e. shows green to)."""
+        return self._approaches_served[phase_id]
 
     # -- core update ---------------------------------------------------
 
@@ -177,12 +204,12 @@ class IntersectionStateMachine:
 
     def _green_ready_at(self, phase_id: str) -> SimTimeMs:
         """Earliest time GREEN may end for `phase_id`. Normal cycling holds
-        the full configured green_ms from default_plan; an explicit
-        request_phase_change() only needs min_green_ms to elapse — that is
-        what lets a later preemption shorten (never below min green) an
-        otherwise longer scheduled green. An active pedestrian service
-        floor (if any) applies unconditionally, even over a pending
-        request — clearance is never cut short."""
+        the full configured_green_ms share; an explicit
+        request_phase_change() only needs min_green_ms (the safety floor)
+        to elapse — that is what lets a later preemption shorten (never
+        below the floor) an otherwise longer scheduled green. An active
+        pedestrian service floor (if any) applies unconditionally, even
+        over a pending request — clearance is never cut short."""
         phase = self.phase(phase_id)
         floor = self.phase_started_at + phase.min_green_ms
         if self.ped_service_end_at is not None:
@@ -204,7 +231,7 @@ class IntersectionStateMachine:
     def _enter_all_red(self, now: SimTimeMs) -> Transition:
         from_state = self.state
         ending_phase = self.current_phase()
-        self._mark_red(now, ending_phase.movements)
+        self._mark_red(now, self.served_approaches(ending_phase.id))
         self.current_phase_id = None
         self.state = SignalState.ALL_RED
         self.state_started_at = now
@@ -215,7 +242,7 @@ class IntersectionStateMachine:
     def _enter_green(self, now: SimTimeMs, phase_id: str) -> Transition:
         from_state = self.state
         new_phase = self.phase(phase_id)
-        self._mark_green(new_phase.movements)
+        self._mark_green(self.served_approaches(phase_id))
         self.current_phase_id = phase_id
         self.state = SignalState.GREEN
         self.state_started_at = now
@@ -243,7 +270,7 @@ class IntersectionStateMachine:
         timing rules — only ever defers. This is also how a hold is
         maintained: requesting the already-current phase still sets it as
         the pending target, which is what stops the state machine from
-        rotating away once the phase's normal configured green_ms elapses
+        rotating away once the phase's normal configured_green_ms elapses
         (see `_green_ready_at`) — a hold is "requesting to stay"."""
         if target_phase_id not in self._phases:
             return PhaseChangeResult(accepted=False, earliest_green_at=None, reason="unknown_phase")
@@ -323,32 +350,37 @@ class IntersectionStateMachine:
 
     # -- red-time bookkeeping (feeds max-hold enforcement later) ----------
 
-    def _init_red_since(self, intersection: Intersection, at: SimTimeMs) -> None:
-        green_now = self.green_movements()
-        for approach in intersection.approaches:
-            if approach.direction not in green_now:
-                self.red_since[approach.direction] = at
+    def _init_red_since(self, at: SimTimeMs) -> None:
+        green_now = self.served_approaches(self.current_phase_id) if self.current_phase_id else frozenset()
+        for approach_id in self._all_approach_ids:
+            if approach_id not in green_now:
+                self.red_since[approach_id] = at
 
-    def _mark_red(self, now: SimTimeMs, movements: list[Direction]) -> None:
-        for m in movements:
-            if m not in self.red_since:
-                self.red_since[m] = now
+    def _mark_red(self, now: SimTimeMs, approach_ids: frozenset[str]) -> None:
+        for a in approach_ids:
+            if a not in self.red_since:
+                self.red_since[a] = now
 
-    def _mark_green(self, movements: list[Direction]) -> None:
-        for m in movements:
-            self.red_since.pop(m, None)
+    def _mark_green(self, approach_ids: frozenset[str]) -> None:
+        for a in approach_ids:
+            self.red_since.pop(a, None)
 
     def _mark_all_red(self, now: SimTimeMs) -> None:
-        for m in self.green_movements() | self.amber_movements():
-            self.red_since.setdefault(m, now)
+        served = self.served_approaches(self.current_phase_id) if self.current_phase_id else frozenset()
+        for a in served:
+            self.red_since.setdefault(a, now)
 
 
-def detect_conflict(conflict_matrix: ConflictMatrix, movements: set[Direction]) -> str | None:
+def _default_rules() -> ConflictRules:
+    return ConflictRules()
+
+
+def detect_conflict(conflict_matrix: JunctionConflictMatrix, movement_ids: set[str]) -> str | None:
     """Pure function: returns a reason string if any two movements in
-    `movements` conflict, else None. Kept standalone (not a method) so it
+    `movement_ids` conflict, else None. Kept standalone (not a method) so it
     can be unit-tested directly against hand-built inputs without having to
     drive the state machine through its public API into a broken state."""
-    items = sorted(movements)
+    items = sorted(movement_ids)
     for i in range(len(items)):
         for j in range(i + 1, len(items)):
             a, b = items[i], items[j]
