@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from core.clock import Clock, SimTimeMs
 from core.config import Settings
-from core.models import City
+from core.general_city import GeneralCity
 from core.rng import RngFactory
 from sim.topology import is_border_intersection
 from sim.traffic import TrafficModel
@@ -28,11 +28,11 @@ class DemandSource:
     is_boundary: bool
 
 
-def _is_arterial(city: City, segment_id: str) -> bool:
+def _is_arterial(city: GeneralCity, segment_id: str) -> bool:
     return city.segment(segment_id).lanes > 2
 
 
-def build_sources(city: City) -> list[DemandSource]:
+def build_sources(city: GeneralCity) -> list[DemandSource]:
     sources = []
     for road in sorted(city.roads, key=lambda r: r.id):
         boundary = is_border_intersection(city, road.from_node)
@@ -46,7 +46,7 @@ def build_sources(city: City) -> list[DemandSource]:
 
 class DemandModel:
     def __init__(
-        self, city: City, settings: Settings, rng: RngFactory, clock: Clock, traffic: TrafficModel
+        self, city: GeneralCity, settings: Settings, rng: RngFactory, clock: Clock, traffic: TrafficModel
     ) -> None:
         self.settings = settings
         self.clock = clock

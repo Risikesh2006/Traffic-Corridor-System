@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
 
-from core.city_loader import CityValidationError, load_city  # noqa: E402
+from core.general_city_loader import GeneralCityValidationError, load_general_city  # noqa: E402
 from core.config import load_settings  # noqa: E402
 
 
@@ -20,8 +20,8 @@ def main() -> None:
     settings = load_settings(config_dir / "settings.yaml")
 
     try:
-        city = load_city(config_dir / "city.json", settings)
-    except CityValidationError as exc:
+        city = load_general_city(config_dir / "cities" / "grid.city.json", settings)
+    except GeneralCityValidationError as exc:
         print(f"Validation: FAILED — {exc}")
         raise SystemExit(1) from None
 

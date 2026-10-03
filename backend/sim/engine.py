@@ -13,7 +13,8 @@ import json
 from controller.intersection_controller import IntersectionController
 from core.clock import DEFAULT_START_LABEL, SimClock, SimTimeMs
 from core.config import Settings
-from core.models import City, Priority
+from core.general_city import GeneralCity
+from core.models import Priority
 from core.observer import SimulationObserver
 from core.rng import RngFactory
 from sim.ambulance import AmbulanceSim, SimAmbulance
@@ -28,7 +29,7 @@ from sim.vehicle_feed import SimVehicleFeed
 
 class Simulation:
     def __init__(
-        self, city: City, settings: Settings, seed: int, start_wall_label: str = DEFAULT_START_LABEL
+        self, city: GeneralCity, settings: Settings, seed: int, start_wall_label: str = DEFAULT_START_LABEL
     ) -> None:
         self.city = city
         self.settings = settings
@@ -126,7 +127,7 @@ class Simulation:
             intersections[node_id] = {
                 "state": str(sm.state),
                 "current_phase_id": sm.current_phase_id,
-                "signal_view": {str(d): str(s) for d, s in controller.signal_view().items()},
+                "signal_view": {str(a): str(s) for a, s in controller.approach_view().items()},
             }
 
         segments = {}

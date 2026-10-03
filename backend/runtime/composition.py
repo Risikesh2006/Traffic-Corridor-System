@@ -20,9 +20,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from central.system import CentralSystem
-from core.city_loader import load_city
 from core.config import Settings, load_settings
-from core.models import City, Priority
+from core.general_city import GeneralCity
+from core.general_city_loader import load_general_city
+from core.models import Priority
 from sim.engine import Simulation
 from state.history import HistoricalProfile
 
@@ -34,7 +35,7 @@ PROFILE_PATH = REPO_ROOT / "data" / "historical_profile.json"
 class Runtime:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         seed: int,
         profile: HistoricalProfile | None = None,
@@ -94,7 +95,7 @@ def build_runtime(
     settings = settings or load_settings(CONFIG_DIR / "settings.yaml")
     if peak_multiplier is not None:
         settings = settings.model_copy(update={"demand_peak_multiplier": peak_multiplier})
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
     return Runtime(
         city=city,
         settings=settings,

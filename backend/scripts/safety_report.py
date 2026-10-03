@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
 
 from chaos.commander import ChaoticCommander  # noqa: E402
 from chaos.invariants import InvariantChecker  # noqa: E402
-from core.city_loader import load_city  # noqa: E402
+from core.general_city_loader import load_general_city  # noqa: E402
 from core.config import load_settings  # noqa: E402
 from core.models import Priority  # noqa: E402
 from safety.gate import SafeSignalLink  # noqa: E402
@@ -49,7 +49,9 @@ def run_one(
             "network_latency_jitter_ms": 50,
         }
     )
-    city = load_city(Path(__file__).resolve().parents[2] / "config" / "city.json", settings)
+    city = load_general_city(
+        Path(__file__).resolve().parents[2] / "config" / "cities" / "grid.city.json", settings
+    )
     sim = Simulation(city, settings, seed=seed)
     sim.add_ambulance("AMB-1", ROUTE, Priority.P1)
 
@@ -68,7 +70,7 @@ def run_one(
         )
 
     gate = SafeSignalLink(sim.network, supervisor, view_source, sim.clock)
-    commander = ChaoticCommander(list(sim.controllers), settings, sim.rng, gate)
+    commander = ChaoticCommander(city, list(sim.controllers), settings, sim.rng, gate)
     checker = InvariantChecker(city, settings, sim.controllers, hmac_secret=SECRET)
 
     class _Heartbeat:

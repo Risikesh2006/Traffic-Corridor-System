@@ -24,9 +24,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
 
-from core.city_loader import load_city  # noqa: E402
+from core.general_city_loader import load_general_city  # noqa: E402
 from core.config import Settings, load_settings  # noqa: E402
-from core.models import City  # noqa: E402
+from core.general_city import GeneralCity  # noqa: E402
 from sim.engine import Simulation  # noqa: E402
 
 SAMPLE_INTERVAL_S = 60
@@ -42,7 +42,7 @@ def _bucket_index(sim_time_ms: int, bucket_minutes: int) -> int:
     return int((total_minutes // bucket_minutes) % ((24 * 60) // bucket_minutes))
 
 
-def _run_seed(seed: int, settings: Settings, city: City, duration_ms: int = DAY_MS) -> SampleTable:
+def _run_seed(seed: int, settings: Settings, city: GeneralCity, duration_ms: int = DAY_MS) -> SampleTable:
     bucket_minutes = settings.history_bucket_minutes
     n_buckets = (24 * 60) // bucket_minutes
     table: SampleTable = {r.id: [[] for _ in range(n_buckets)] for r in city.roads}
@@ -75,7 +75,7 @@ def _iqr(values: list[float]) -> float:
 
 
 def _merge(
-    tables: list[SampleTable], city: City, n_buckets: int
+    tables: list[SampleTable], city: GeneralCity, n_buckets: int
 ) -> dict[str, list[dict[str, float]]]:
     merged: dict[str, list[dict[str, float]]] = {}
     for road in sorted(city.roads, key=lambda r: r.id):
@@ -103,7 +103,7 @@ def _merge(
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     settings = load_settings(repo_root / "config" / "settings.yaml")
-    city = load_city(repo_root / "config" / "city.json", settings)
+    city = load_general_city(repo_root / "config" / "cities" / "grid.city.json", settings)
     n_buckets = (24 * 60) // settings.history_bucket_minutes
 
     seeds = list(settings.history_seeds)

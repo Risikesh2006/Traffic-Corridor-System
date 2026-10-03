@@ -19,7 +19,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import Priority, SensorMetric
 from runtime.composition import Runtime, build_runtime
@@ -73,7 +73,7 @@ def health() -> dict[str, str]:
 @app.get("/api/v1/_debug/city-summary")
 def city_summary() -> dict[str, object]:
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
     return {
         "intersections": len(city.intersections),
         "roads": len(city.roads),

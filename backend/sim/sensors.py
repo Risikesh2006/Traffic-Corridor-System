@@ -10,14 +10,15 @@ from __future__ import annotations
 
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, SensorMetric, SensorReading
+from core.general_city import GeneralCity
+from core.models import SensorMetric, SensorReading
 from core.rng import RngFactory
 from sim.traffic import TrafficModel
 
 
 class SimSensorFeed:
     def __init__(
-        self, city: City, settings: Settings, rng: RngFactory, traffic: TrafficModel
+        self, city: GeneralCity, settings: Settings, rng: RngFactory, traffic: TrafficModel
     ) -> None:
         self.settings = settings
         self.traffic = traffic

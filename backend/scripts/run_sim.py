@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/ on path
 
-from core.city_loader import load_city  # noqa: E402
+from core.general_city_loader import load_general_city  # noqa: E402
 from core.config import load_settings  # noqa: E402
 from core.models import Priority  # noqa: E402
 from sim.engine import Simulation  # noqa: E402
@@ -48,7 +48,7 @@ def main() -> None:
     settings = load_settings(config_dir / "settings.yaml")
     if args.peak:
         settings = settings.model_copy(update={"demand_peak_multiplier": args.peak_multiplier})
-    city = load_city(config_dir / "city.json", settings)
+    city = load_general_city(config_dir / "cities" / "grid.city.json", settings)
 
     sim = Simulation(city, settings, seed=args.seed)
     route = args.route.split(",")

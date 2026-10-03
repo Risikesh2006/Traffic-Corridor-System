@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from controller.intersection_controller import IntersectionController
 from core.clock import SimTimeMs
-from core.models import City
+from core.general_city import GeneralCity
 from sim.ambulance import AmbulanceSim, SimAmbulance
 from sim.traffic import TrafficModel
 
@@ -12,7 +12,7 @@ from sim.traffic import TrafficModel
 class SimulationMetrics:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         controllers: dict[str, IntersectionController],
         traffic: TrafficModel,
         ambulances: AmbulanceSim,
