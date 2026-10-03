@@ -31,7 +31,8 @@ from core.clock import Clock, SimTimeMs
 from core.config import Settings
 from core.events import Event, EventType
 from core.interfaces import GuidanceLink
-from core.models import City, ControllerStatus, HospitalStatus, Priority, RouteAckStatus
+from core.general_city import GeneralCity
+from core.models import ControllerStatus, HospitalStatus, Priority, RouteAckStatus
 from events.bus import EventBus
 from routing.astar import search
 from routing.cost import RoutingContext, evaluate_path, step_cost
@@ -93,7 +94,7 @@ class _Vehicle:
 class RoutePlanner:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         graph: RoutingGraph,
         ctx: RoutingContext,
         settings: Settings,

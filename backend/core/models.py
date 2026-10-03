@@ -309,7 +309,7 @@ class PresenceReading(BaseModel):
 
     source_id: str
     intersection_id: str
-    approach_direction: Direction
+    approach_id: str
     vehicle_id: str
     timestamp: SimTimeMs
     sequence: int
@@ -337,7 +337,7 @@ class StatusReport(BaseModel):
     signal_state: SignalState
     current_phase_id: str | None
     state_started_at: SimTimeMs
-    red_since: dict[Direction, SimTimeMs]
+    red_since: dict[str, SimTimeMs]
     applied_plan_version: int
     active_hold: ActiveHoldInfo | None = None
 

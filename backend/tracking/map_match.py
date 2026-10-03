@@ -23,7 +23,7 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass
 
-from core.models import City
+from core.general_city import GeneralCity
 
 HEADING_WEIGHT = 0.5
 ROUTE_BONUS = 0.3
@@ -50,7 +50,7 @@ def _heading_penalty(fix_heading: float, segment_bearing: float) -> float:
 
 
 class MapMatcher:
-    def __init__(self, city: City, radius_m: float) -> None:
+    def __init__(self, city: GeneralCity, radius_m: float) -> None:
         self.city = city
         self.radius_m = radius_m
         self._geometry: dict[str, tuple[float, float, float, float, float]] = {}

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from core.config import Settings
-from core.models import City
+from core.general_city import GeneralCity
 
 
 class Turn(StrEnum):
@@ -69,7 +69,7 @@ def classify_turn(incoming: tuple[float, float], outgoing: tuple[float, float], 
 
 
 class RoutingGraph:
-    def __init__(self, city: City, settings: Settings) -> None:
+    def __init__(self, city: GeneralCity, settings: Settings) -> None:
         self.settings = settings
         self._coords = {n.id: (n.x, n.y) for n in city.intersections}
         self.segments: dict[str, SegmentInfo] = {}

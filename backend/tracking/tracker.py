@@ -20,7 +20,9 @@ from typing import Protocol
 from core.clock import SimTimeMs
 from core.config import Settings
 from core.events import EventType
-from core.models import City, GpsFix, PositionSource, PresenceReading, Priority
+from core.general_city import GeneralCity
+from core.models import GpsFix, PositionSource, PresenceReading, Priority
+from core.phasing import cycle_ms as _phase_cycle_ms
 from events.bus import EventBus
 from tracking.eta import IntersectionEta, StopLineTarget, compute_etas
 from tracking.filter import AlphaBetaFilter, EwmaSpeed
@@ -90,7 +92,7 @@ class TrackSnapshot:
 class VehicleTracker:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         matcher: MapMatcher,
         queue_wait: QueueWaitFn,
@@ -436,14 +438,7 @@ class VehicleTracker:
         )
 
     def _compute_cycles(self) -> dict[str, int]:
-        cycles: dict[str, int] = {}
-        for node in self.city.intersections:
-            total = 0
-            for entry in node.default_plan:
-                phase = next(p for p in node.phases if p.id == entry.phase_id)
-                total += entry.green_ms + phase.amber_ms + phase.all_red_ms
-            cycles[node.id] = total
-        return cycles
+        return {node.id: _phase_cycle_ms(node.phases) for node in self.city.intersections}
 
     def _emit(self, event_type: EventType, now: SimTimeMs, payload: dict[str, object]) -> None:
         if self.bus is not None:

@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City
+from core.general_city import GeneralCity
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class IntersectionEta:
 
 
 def compute_etas(
-    city: City,
+    city: GeneralCity,
     settings: Settings,
     route: list[str],
     targets: list[StopLineTarget],
@@ -107,7 +107,7 @@ def compute_etas(
     return results
 
 
-def _cumulative_lengths(city: City, route_segments: list[str]) -> list[float]:
+def _cumulative_lengths(city: GeneralCity, route_segments: list[str]) -> list[float]:
     total = 0.0
     out = [0.0]
     for sid in route_segments:
@@ -117,7 +117,7 @@ def _cumulative_lengths(city: City, route_segments: list[str]) -> list[float]:
 
 
 def _travel_seconds(
-    city: City,
+    city: GeneralCity,
     settings: Settings,
     route_segments: list[str],
     cumulative: list[float],

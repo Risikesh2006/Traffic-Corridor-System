@@ -10,22 +10,20 @@ from __future__ import annotations
 
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, ControllerStatus, SensorMetric
+from core.general_city import GeneralCity
+from core.models import ControllerStatus, SensorMetric
+from core.phasing import cycle_ms as _phase_cycle_ms
 from state.world_state import WorldState
 
 
 class WorldRoutingContext:
-    def __init__(self, city: City, settings: Settings, world: WorldState) -> None:
+    def __init__(self, city: GeneralCity, settings: Settings, world: WorldState) -> None:
         self._city = city
         self._settings = settings
         self._world = world
-        self._cycle_s: dict[str, float] = {}
-        for node in city.intersections:
-            cycle_ms = 0
-            for entry in node.default_plan:
-                phase = next(p for p in node.phases if p.id == entry.phase_id)
-                cycle_ms += entry.green_ms + phase.amber_ms + phase.all_red_ms
-            self._cycle_s[node.id] = cycle_ms / 1000.0
+        self._cycle_s: dict[str, float] = {
+            node.id: _phase_cycle_ms(node.phases) / 1000.0 for node in city.intersections
+        }
 
     def live(self, segment_id: str, metric: SensorMetric, now: SimTimeMs) -> tuple[float, float]:
         estimate = self._world.estimate(segment_id, metric, now)

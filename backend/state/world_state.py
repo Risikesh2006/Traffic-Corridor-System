@@ -23,10 +23,9 @@ from dataclasses import dataclass, field
 
 from core.clock import Clock, SimTimeMs
 from core.config import Settings
+from core.general_city import GeneralCity
 from core.models import (
-    City,
     ControllerStatus,
-    Direction,
     EstimateSource,
     SensorMetric,
     SensorReading,
@@ -61,7 +60,7 @@ class IntersectionView:
     signal_state: SignalState | None
     current_phase_id: str | None
     state_started_at: SimTimeMs | None
-    red_since: dict[Direction, SimTimeMs]
+    red_since: dict[str, SimTimeMs]
     applied_plan_version: int
     report_age_ms: int | None
 
@@ -74,7 +73,7 @@ class _IntersectionRecord:
 
 @dataclass
 class WorldState:
-    city: City
+    city: GeneralCity
     settings: Settings
     clock: Clock
     profile: HistoricalProfile | None = None
@@ -84,9 +83,10 @@ class WorldState:
 
     def __post_init__(self) -> None:
         self._segment_ids = sorted(r.id for r in self.city.roads)
-        self._approach_of: dict[str, tuple[str, Direction]] = {
-            sid: (self.city.segment(sid).to_node, self.city.approach_direction(sid))
-            for sid in self._segment_ids
+        self._approach_of: dict[str, tuple[str, str]] = {
+            approach.segment_id: (node.id, approach.id)
+            for node in self.city.intersections
+            for approach in node.approaches
         }
         self._intersection_ids = sorted(n.id for n in self.city.intersections)
 
@@ -145,13 +145,13 @@ class WorldState:
         return Estimate(value, confidence, source, age_ms, False)
 
     def queue_estimate(
-        self, intersection_id: str, approach: Direction, now: SimTimeMs
+        self, intersection_id: str, approach_id: str, now: SimTimeMs
     ) -> Estimate | None:
         """Estimated queue at one approach's stop line (FR-COR input for
         clearance time). None if no segment feeds that approach."""
         for sid in self._segment_ids:
-            node, direction = self._approach_of[sid]
-            if node == intersection_id and direction == approach:
+            node, aid = self._approach_of[sid]
+            if node == intersection_id and aid == approach_id:
                 return self.estimate(sid, SensorMetric.QUEUE_COUNT, now)
         return None
 
