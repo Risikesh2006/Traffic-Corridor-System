@@ -156,6 +156,7 @@ def generate_phases(junction: Junction, settings: Settings) -> tuple[JunctionPha
                 min_green_ms=green,
                 amber_ms=amber,
                 all_red_ms=all_red,
+                ped_clearance_ms=settings.ped_clearance_ms,
             )
         )
     result = tuple(phases)
