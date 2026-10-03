@@ -31,6 +31,8 @@ CENTRAL_MODULES = [
     "safety",
     "health",
     "events",
+    "central",
+    "ingestion",
 ]
 
 # Relative to BACKEND_DIR. These are the only files permitted to touch real
@@ -127,3 +129,30 @@ def test_no_global_random_import_outside_allowed_files() -> None:
         if pattern.search(path.read_text(encoding="utf-8")):
             violations.append(rel)
     assert not violations, f"`import random` used outside allowed files: {violations}"
+
+
+def test_runtime_is_imported_only_by_api_and_scripts() -> None:
+    """The composition root (runtime/) is the only place that wires the
+    simulator to central code. Nothing else may depend on it, so the
+    central system can never reach the simulator through it."""
+    allowed_importers = {"api", "scripts", "runtime", "tests"}
+    violations = []
+    for path in _all_python_files(BACKEND_DIR):
+        top = path.relative_to(BACKEND_DIR).parts[0]
+        if top in allowed_importers or top.endswith(".py"):
+            continue
+        if "runtime" in _imported_module_roots(path):
+            violations.append(str(path.relative_to(BACKEND_DIR)))
+    assert not violations, f"only api/ and scripts/ may import runtime: {violations}"
+
+
+def test_central_packages_never_import_runtime() -> None:
+    violations = []
+    for module_name in CENTRAL_MODULES:
+        module_dir = BACKEND_DIR / module_name
+        if not module_dir.exists():
+            continue
+        for path in _all_python_files(module_dir):
+            if "runtime" in _imported_module_roots(path):
+                violations.append(str(path.relative_to(BACKEND_DIR)))
+    assert not violations, f"central modules must never import runtime: {violations}"

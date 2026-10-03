@@ -21,8 +21,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.city_loader import load_city
 from core.config import load_settings
-from core.models import Priority
-from sim.engine import Simulation
+from core.models import Priority, SensorMetric
+from runtime.composition import Runtime, build_runtime
 from sim.runner import RealtimeRunner
 
 APP_VERSION = "0.1.0"
@@ -33,21 +33,18 @@ CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", _DEFAULT_CONFIG_DIR))
 
 DEV_ROUTE = ["A6", "B6", "B5", "C5", "C4", "D4", "D3", "E3", "E2", "F2", "F1"]
 
-_dev_simulation: Simulation | None = None
+_dev_runtime: Runtime | None = None
 _dev_runner: RealtimeRunner | None = None
 _dev_task: asyncio.Task[None] | None = None
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    global _dev_simulation, _dev_runner, _dev_task
+    global _dev_runtime, _dev_runner, _dev_task
     if os.environ.get("DEV_SIM") == "1":
-        settings = load_settings(CONFIG_DIR / "settings.yaml")
-        settings = settings.model_copy(update={"demand_peak_multiplier": 2.0})
-        city = load_city(CONFIG_DIR / "city.json", settings)
-        _dev_simulation = Simulation(city, settings, seed=settings.default_seed)
-        _dev_simulation.add_ambulance("AMB-1", DEV_ROUTE, Priority.P1)
-        _dev_runner = RealtimeRunner(_dev_simulation, speed_multiplier=1.0)
+        _dev_runtime = build_runtime(peak_multiplier=2.0)
+        _dev_runtime.add_ambulance("AMB-1", DEV_ROUTE, Priority.P1)
+        _dev_runner = RealtimeRunner(_dev_runtime, speed_multiplier=1.0)
         _dev_task = asyncio.create_task(_dev_runner.run())
 
     yield
@@ -88,9 +85,43 @@ def city_summary() -> dict[str, object]:
 
 @app.get("/api/v1/sim/snapshot")
 def sim_snapshot() -> dict[str, object]:
-    if _dev_simulation is None:
+    if _dev_runtime is None:
         raise HTTPException(
             status_code=503,
             detail="dev simulation not running — start the backend with DEV_SIM=1",
         )
-    return _dev_simulation.snapshot()
+    now = _dev_runtime.sim.clock.now()
+    snapshot = _dev_runtime.sim.snapshot()
+    snapshot["tracked"] = _tracked_view(now)
+    snapshot["freshness"] = _dev_runtime.central.world.freshness_summary(now)
+    return snapshot
+
+
+def _tracked_view(now: int) -> dict[str, object]:
+    central = _dev_runtime.central  # type: ignore[union-attr]
+    out: dict[str, object] = {}
+    for vehicle_id in central.tracker.tracked_ids():
+        snap = central.tracker.snapshot(vehicle_id, now)
+        out[vehicle_id] = {
+            "x": snap.x,
+            "y": snap.y,
+            "s_m": snap.s_m,
+            "uncertainty_m": snap.uncertainty_m,
+            "position_source": snap.position_source.value,
+            "last_fix_age_ms": snap.last_fix_age_ms,
+            "etas": [
+                {
+                    "intersection_id": e.intersection_id,
+                    "eta_expected_ms": e.eta_expected_ms,
+                    "eta_low_ms": e.eta_low_ms,
+                    "eta_high_ms": e.eta_high_ms,
+                }
+                for e in snap.etas[:5]
+            ],
+        }
+    stale = {
+        road.id: central.world.estimate(road.id, SensorMetric.DENSITY, now).stale
+        for road in _dev_runtime.sim.city.roads  # type: ignore[union-attr]
+    }
+    out["stale_segments"] = sorted(sid for sid, is_stale in stale.items() if is_stale)
+    return out

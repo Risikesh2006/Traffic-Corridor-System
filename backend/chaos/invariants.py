@@ -103,7 +103,9 @@ class InvariantChecker:
                 min_green = phases[cur.phase_id].min_green_ms
                 if duration < min_green:
                     self._record(
-                        node_id, cur.at, "INV-04",
+                        node_id,
+                        cur.at,
+                        "INV-04",
                         f"phase {cur.phase_id} held green for {duration}ms, "
                         f"less than min_green_ms={min_green}",
                     )
@@ -111,7 +113,9 @@ class InvariantChecker:
                 amber_ms = phases[cur.phase_id].amber_ms
                 if duration < amber_ms:
                     self._record(
-                        node_id, cur.at, "INV-02",
+                        node_id,
+                        cur.at,
+                        "INV-02",
                         f"phase {cur.phase_id} amber lasted {duration}ms, "
                         f"less than amber_ms={amber_ms}",
                     )
@@ -119,7 +123,9 @@ class InvariantChecker:
                 all_red_ms = phases[nxt.phase_id].all_red_ms
                 if duration < all_red_ms:
                     self._record(
-                        node_id, cur.at, "INV-03",
+                        node_id,
+                        cur.at,
+                        "INV-03",
                         f"all-red before {nxt.phase_id} lasted {duration}ms, "
                         f"less than all_red_ms={all_red_ms}",
                     )
@@ -135,7 +141,9 @@ class InvariantChecker:
         if sm.ped_service_end_at is not None and now < sm.ped_service_end_at:
             if sm.state not in (SignalState.GREEN, SignalState.FLASHING_RED):
                 self._record(
-                    node_id, now, "INV-05",
+                    node_id,
+                    now,
+                    "INV-05",
                     f"left GREEN at {now}ms while pedestrian service still active "
                     f"(ends {sm.ped_service_end_at}ms)",
                 )
@@ -155,7 +163,9 @@ class InvariantChecker:
             red_for = now - since
             if red_for > self.settings.max_hold_ms + tolerance_ms:
                 self._record(
-                    node_id, now, "INV-06",
+                    node_id,
+                    now,
+                    "INV-06",
                     f"approach {direction} red for {red_for}ms, exceeds max_hold_ms="
                     f"{self.settings.max_hold_ms} (+{tolerance_ms}ms tolerance)",
                 )
@@ -184,13 +194,17 @@ class InvariantChecker:
             seen = self._seen_executed_keys[node_id]
             if ack.idempotency_key in seen:
                 self._record(
-                    node_id, ack.timestamp, "INV-09",
+                    node_id,
+                    ack.timestamp,
+                    "INV-09",
                     f"idempotency_key {ack.idempotency_key} executed more than once",
                 )
             seen.add(ack.idempotency_key)
             if not verify(command, command.approval, self._secret):
                 self._record(
-                    node_id, ack.timestamp, "INV-10",
+                    node_id,
+                    ack.timestamp,
+                    "INV-10",
                     f"command {command.id} executed without a valid approval",
                 )
         self._processed_commands[node_id] = len(log)

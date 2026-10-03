@@ -125,14 +125,18 @@ def main() -> None:
         n_violations = len(checker.violations())
         total_violations += n_violations
         status = "OK" if n_violations == 0 else f"{n_violations} VIOLATIONS"
-        print(f"seed={seed}: sent={commander.sent} approved={commander.approved} "
-              f"executed={commander.executed} -> {status}")
+        print(
+            f"seed={seed}: sent={commander.sent} approved={commander.approved} "
+            f"executed={commander.executed} -> {status}"
+        )
     wall_elapsed_s = time.perf_counter() - wall_start
 
     print()
     print("=== Commands ===")
-    print(f"sent={total_sent} approved={total_approved} executed={total_executed} "
-          f"duplicates={total_duplicates} stale_version_ignored={total_stale_ignored}")
+    print(
+        f"sent={total_sent} approved={total_approved} executed={total_executed} "
+        f"duplicates={total_duplicates} stale_version_ignored={total_stale_ignored}"
+    )
     print("rejected by reason:")
     for reason, count in sorted(rejected_by_reason.items()):
         print(f"  {reason}: {count}")

@@ -67,8 +67,10 @@ def print_report(sim: Simulation, vehicle_id: str, wall_elapsed_s: float) -> Non
     spawned, exited, in_network = metrics.vehicle_conservation()
     conserved = spawned == exited + in_network
     print("=== Vehicle conservation ===")
-    print(f"spawned={spawned} exited={exited} in_network={in_network} "
-          f"conserved={'PASS' if conserved else 'FAIL'}")
+    print(
+        f"spawned={spawned} exited={exited} in_network={in_network} "
+        f"conserved={'PASS' if conserved else 'FAIL'}"
+    )
     print()
 
     print("=== Top 10 longest average queues ===")

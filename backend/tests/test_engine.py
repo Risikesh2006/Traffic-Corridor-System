@@ -86,9 +86,7 @@ def test_ten_minutes_at_peak_runs_under_15_seconds():
     settings = settings.model_copy(update={"demand_peak_multiplier": 2.5})
     city = load_city(CONFIG_DIR / "city.json", settings)
     sim = Simulation(city, settings, seed=4417)
-    sim.add_ambulance(
-        "AMB-1", "A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1".split(","), Priority.P1
-    )
+    sim.add_ambulance("AMB-1", "A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1".split(","), Priority.P1)
 
     start = time.perf_counter()
     sim.run_for(10 * 60 * 1000)

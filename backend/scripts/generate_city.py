@@ -32,10 +32,14 @@ ARTERIAL_LANES, ARTERIAL_KMH, ARTERIAL_CAP = 3, 60.0, 2400.0
 MOVEMENTS = ["N", "S", "E", "W"]
 # Authored symmetrically and with no self-conflicts, per city_loader's checks.
 CONFLICT_PAIRS = [
-    ["N", "E"], ["E", "N"],
-    ["N", "W"], ["W", "N"],
-    ["S", "E"], ["E", "S"],
-    ["S", "W"], ["W", "S"],
+    ["N", "E"],
+    ["E", "N"],
+    ["N", "W"],
+    ["W", "N"],
+    ["S", "E"],
+    ["E", "S"],
+    ["S", "W"],
+    ["W", "S"],
 ]
 
 # Opposite-direction lookup: the approach direction a road from `d` feeds.
