@@ -234,6 +234,18 @@ class City(BaseModel):
         node_a, node_b = self.intersection(a), self.intersection(b)
         return float(((node_a.x - node_b.x) ** 2 + (node_a.y - node_b.y) ** 2) ** 0.5)
 
+    def approach_direction(self, segment_id: str) -> Direction:
+        """The approach a segment feeds at its to_node (ADR-004 convention:
+        a segment arriving from the west feeds the W approach)."""
+        road = self.segment(segment_id)
+        origin, dest = self.intersection(road.from_node), self.intersection(road.to_node)
+        dx, dy = origin.x - dest.x, origin.y - dest.y
+        if dx != 0:
+            return Direction.W if dx < 0 else Direction.E
+        if dy != 0:
+            return Direction.N if dy < 0 else Direction.S
+        raise ValueError(f"segment {segment_id} has identical endpoints")
+
 
 class SensorReading(BaseModel):
     model_config = ConfigDict(frozen=True)

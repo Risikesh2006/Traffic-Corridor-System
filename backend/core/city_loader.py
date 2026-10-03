@@ -81,9 +81,7 @@ def _validate_segments_reference_known_nodes(city: City) -> None:
                 f"road {road.id} references unknown from_node '{road.from_node}'"
             )
         if road.to_node not in node_ids:
-            raise CityValidationError(
-                f"road {road.id} references unknown to_node '{road.to_node}'"
-            )
+            raise CityValidationError(f"road {road.id} references unknown to_node '{road.to_node}'")
 
 
 def _validate_conflict_matrices(raw_intersections: list[dict[str, Any]]) -> None:

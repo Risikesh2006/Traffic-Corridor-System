@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from core.models import Command, CommandAck, ControllerStatus, GpsFix, SensorReading
+from core.models import (
+    Command,
+    CommandAck,
+    ControllerStatus,
+    GpsFix,
+    PresenceReading,
+    SensorReading,
+    StatusReport,
+)
 
 
 class VehicleFeed(Protocol):
@@ -53,4 +61,22 @@ class SignalLink(Protocol):
 
     def controller_status(self, intersection_id: str) -> ControllerStatus:
         """Best-known reachability/operating status of that intersection's controller."""
+        ...
+
+
+class StatusFeed(Protocol):
+    """Today: the SimNetwork up-link carrying controller status reports.
+    Real world: the same reports arriving over the field network."""
+
+    def drain_status_reports(self) -> list[StatusReport]:
+        """Return and clear all status reports delivered since the last call."""
+        ...
+
+
+class PresenceFeed(Protocol):
+    """Today: simulated stop-line emergency-vehicle presence detectors.
+    Real world: optical or acoustic emergency-vehicle detectors."""
+
+    def drain_presence_readings(self) -> list[PresenceReading]:
+        """Return and clear all presence readings since the last call."""
         ...

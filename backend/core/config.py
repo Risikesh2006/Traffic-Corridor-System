@@ -76,6 +76,24 @@ class Settings(BaseModel):
     deviation_duration_s: float = Field(default=5, gt=0)
     stop_line_margin_m: float = Field(default=5, ge=0)
     eta_base_window_s: float = Field(default=5, ge=0)
+    dead_reckoning_growth_mps: float = Field(
+        default=2.0, ge=0, description="position uncertainty growth per s without GPS"
+    )
+    eta_k_gps: float = Field(default=0.5, ge=0, description="window growth per s of GPS age")
+    eta_k_speed: float = Field(
+        default=1.0, ge=0, description="window growth per s of travel x speed std"
+    )
+    eta_k_wait: float = Field(
+        default=0.5,
+        ge=0,
+        description="window growth per unit projected red wait (signal plan uncertainty)",
+    )
+    eta_k_stale: float = Field(
+        default=0.2, ge=0, description="window growth per unit stale fraction"
+    )
+    eta_expected_red_fraction: float = Field(
+        default=0.5, ge=0, le=1, description="probability of meeting red at a stop line"
+    )
 
     # --- Simulation ---
     sim_ticks_per_second: int = Field(default=10, ge=1)
@@ -101,10 +119,30 @@ class Settings(BaseModel):
     demand_peak_multiplier: float = Field(default=1.0, gt=0)
     demand_hourly_multipliers: list[float] = Field(
         default_factory=lambda: [
-            0.20, 0.15, 0.10, 0.10, 0.15, 0.30,  # 00-05: night trough
-            0.60, 0.90, 1.00, 0.70, 0.55, 0.55,  # 06-11: morning peak at 08
-            0.60, 0.55, 0.50, 0.55, 0.65, 0.85,  # 12-17: moderate, 14:00 ~ 0.50
-            1.00, 0.80, 0.55, 0.45, 0.35, 0.25,  # 18-23: evening peak at 18
+            0.20,
+            0.15,
+            0.10,
+            0.10,
+            0.15,
+            0.30,  # 00-05: night trough
+            0.60,
+            0.90,
+            1.00,
+            0.70,
+            0.55,
+            0.55,  # 06-11: morning peak at 08
+            0.60,
+            0.55,
+            0.50,
+            0.55,
+            0.65,
+            0.85,  # 12-17: moderate, 14:00 ~ 0.50
+            1.00,
+            0.80,
+            0.55,
+            0.45,
+            0.35,
+            0.25,  # 18-23: evening peak at 18
         ],
         description="24 weekday hour-of-day multipliers on demand_base_vph",
     )

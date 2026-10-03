@@ -37,8 +37,7 @@ _TEMPLATES: dict[ReasonCode, str] = {
         "Intersection '{intersection_id}' is {status} and cannot be commanded"
     ),
     ReasonCode.STALE_VERSION: (
-        "Plan version {plan_version} is not newer than the last applied version "
-        "{applied_version}"
+        "Plan version {plan_version} is not newer than the last applied version {applied_version}"
     ),
     ReasonCode.HOLD_TOO_LONG: (
         "Requested hold of {requested_s}s exceeds the per-command limit of "

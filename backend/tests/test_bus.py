@@ -34,17 +34,13 @@ def test_causation_id_set_and_correlation_inherited():
     root = bus.publish(EventType.GPS_FIX, timestamp=0, payload={})
     assert root.correlation_id is None
 
-    derived = bus.publish(
-        EventType.ROUTE_UPDATED, timestamp=1, payload={}, causation_id=root.id
-    )
+    derived = bus.publish(EventType.ROUTE_UPDATED, timestamp=1, payload={}, causation_id=root.id)
     assert derived.causation_id == root.id
     # Root had no correlation_id of its own, so the chain's correlation_id
     # becomes the root event's own id.
     assert derived.correlation_id == root.id
 
-    grandchild = bus.publish(
-        EventType.DECISION, timestamp=2, payload={}, causation_id=derived.id
-    )
+    grandchild = bus.publish(EventType.DECISION, timestamp=2, payload={}, causation_id=derived.id)
     assert grandchild.causation_id == derived.id
     assert grandchild.correlation_id == root.id  # same causal chain throughout
 
