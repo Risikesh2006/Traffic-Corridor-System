@@ -1,0 +1,74 @@
+# Routing report examples (Phase 5)
+# Command A: python -m backend.scripts.routing_report --seed 4417 --minutes 10 --jam C5->C4:120:300
+# Command B: python -m backend.scripts.routing_report --seed 4417 --minutes 10 --jam C4->D4:0:1 --jam-vph 0 --close C4->D4:60
+# Times are absolute simulation seconds. Latency is wall clock on the development machine.
+
+=== A: jam on C5->C4 from 120 s (off the planned route)
+seed 4417  minutes 10.0  peak x2.5  jam C5->C4:120:300 @ 3000 vph
+
+INITIAL ROUTE (planned)
+  A6 > A5 > A4 > B4 > C4 > D4 > D3 > D2 > D1 > E1 > F1
+  cost breakdown (dispatch time):
+    A6->A5: 58.5s (travel 22.5s, queue 0.0s, signal 36.0s, turn 0.0s, uncertainty 0.0s, uncontrollable 0.0s)
+    A5->A4: 63.6s (travel 22.5s, queue 3.4s, signal 36.0s, turn 0.0s, uncertainty 1.7s, uncontrollable 0.0s)
+    A4->B4: 59.9s (travel 15.0s, queue 2.0s, signal 36.0s, turn 5.0s, uncertainty 1.9s, uncontrollable 0.0s)
+    B4->C4: 55.4s (travel 15.0s, queue 2.1s, signal 36.0s, turn 0.0s, uncertainty 2.3s, uncontrollable 0.0s)
+    C4->D4: 56.8s (travel 15.0s, queue 3.2s, signal 36.0s, turn 0.0s, uncertainty 2.6s, uncontrollable 0.0s)
+    D4->D3: 59.8s (travel 15.0s, queue 3.1s, signal 36.0s, turn 3.0s, uncertainty 2.7s, uncontrollable 0.0s)
+    D3->D2: 56.5s (travel 15.0s, queue 2.6s, signal 36.0s, turn 0.0s, uncertainty 2.8s, uncontrollable 0.0s)
+    D2->D1: 56.6s (travel 15.0s, queue 2.7s, signal 36.0s, turn 0.0s, uncertainty 2.9s, uncontrollable 0.0s)
+    D1->E1: 72.9s (travel 22.5s, queue 5.0s, signal 36.0s, turn 5.0s, uncertainty 4.4s, uncontrollable 0.0s)
+    E1->F1: 70.5s (travel 22.5s, queue 7.6s, signal 36.0s, turn 0.0s, uncertainty 4.5s, uncontrollable 0.0s)
+ALTERNATIVES at t=100s
+   493.1 s  overlap  44%  via A4 > B4 > C4
+   497.6 s  overlap  67%  via A4 > B4 > C4
+   507.9 s  overlap  56%  via A4 > B4 > C4
+  model cost at dispatch: planned route 611 s, fixed baseline route 677 s
+ROUTING DECISIONS
+  t=   15.0s  DISPATCHED       v0->v1     [DISPATCH] Dispatched via A5: 611 s to F1
+SWITCHES: 0   KEPT (rejected candidates): 0
+
+PLANNER LATENCY (wall clock per central step, planner only)
+  steps 439   p50 7.86 ms   p95 88.55 ms   max 115.26 ms
+  A* expansions per plan: median 111, max 111
+  Yen expansions (total over run): 35418, per step 80.7
+
+TRIP OUTCOME
+  run                          arrived  travel s  stops  stopped s
+  planner (dispatched)            True     423.4      9      244.3
+  fixed baseline route            True     337.4      9      128.3
+
+=== B: road C4->D4 closed at 60 s (planned route blocked)
+seed 4417  minutes 10.0  peak x2.5  jam C4->D4:0:1 @ 0 vph  close C4->D4:60
+
+INITIAL ROUTE (planned)
+  A6 > A5 > A4 > B4 > C4 > D4 > D3 > D2 > D1 > E1 > F1
+  cost breakdown (dispatch time):
+    A6->A5: 58.5s (travel 22.5s, queue 0.0s, signal 36.0s, turn 0.0s, uncertainty 0.0s, uncontrollable 0.0s)
+    A5->A4: 63.6s (travel 22.5s, queue 3.4s, signal 36.0s, turn 0.0s, uncertainty 1.7s, uncontrollable 0.0s)
+    A4->B4: 59.9s (travel 15.0s, queue 2.0s, signal 36.0s, turn 5.0s, uncertainty 1.9s, uncontrollable 0.0s)
+    B4->C4: 55.4s (travel 15.0s, queue 2.1s, signal 36.0s, turn 0.0s, uncertainty 2.3s, uncontrollable 0.0s)
+    C4->D4: 56.8s (travel 15.0s, queue 3.2s, signal 36.0s, turn 0.0s, uncertainty 2.6s, uncontrollable 0.0s)
+    D4->D3: 59.8s (travel 15.0s, queue 3.1s, signal 36.0s, turn 3.0s, uncertainty 2.7s, uncontrollable 0.0s)
+    D3->D2: 56.5s (travel 15.0s, queue 2.6s, signal 36.0s, turn 0.0s, uncertainty 2.8s, uncontrollable 0.0s)
+    D2->D1: 56.6s (travel 15.0s, queue 2.7s, signal 36.0s, turn 0.0s, uncertainty 2.9s, uncontrollable 0.0s)
+    D1->E1: 72.9s (travel 22.5s, queue 5.0s, signal 36.0s, turn 5.0s, uncertainty 4.4s, uncontrollable 0.0s)
+    E1->F1: 70.5s (travel 22.5s, queue 7.6s, signal 36.0s, turn 0.0s, uncertainty 4.5s, uncontrollable 0.0s)
+ALTERNATIVES at t=100s
+   526.6 s  overlap  67%  via A4 > B4 > C4
+   529.3 s  overlap  67%  via A4 > B4 > C4
+  model cost at dispatch: planned route 611 s, fixed baseline route 677 s
+ROUTING DECISIONS
+  t=   15.0s  DISPATCHED       v0->v1     [DISPATCH] Dispatched via A5: 611 s to F1
+  t=   61.0s  ADOPTED          v1->v2     [ETA_DRIFT,ROAD_CLOSED] Switched to v2 via A4: the current route v1 contains a closed road
+SWITCHES: 1   KEPT (rejected candidates): 0
+
+PLANNER LATENCY (wall clock per central step, planner only)
+  steps 365   p50 8.75 ms   p95 88.49 ms   max 115.76 ms
+  A* expansions per plan: median 101, max 111
+  Yen expansions (total over run): 36952, per step 101.2
+
+TRIP OUTCOME
+  run                          arrived  travel s  stops  stopped s
+  planner (dispatched)            True     349.4      9      155.3
+  fixed baseline route            True     338.4      9      129.3

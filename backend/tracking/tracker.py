@@ -121,11 +121,14 @@ class VehicleTracker:
         self._tracks[vehicle_id].last_updated = now
 
     def set_route(self, vehicle_id: str, route: list[str]) -> None:
+        """Replace the route ahead. The caller guarantees the new route shares the
+        prefix already travelled, so distance along it and every passed stop line
+        stay valid; all other tracking state is kept."""
         track = self._tracks[vehicle_id]
         rebuilt = self._build_track(vehicle_id, track.priority, route)
-        rebuilt.filter = track.filter
-        rebuilt.ewma = track.ewma
-        self._tracks[vehicle_id] = rebuilt
+        track.route = rebuilt.route
+        track.route_segments = rebuilt.route_segments
+        track.cumulative_m = rebuilt.cumulative_m
 
     # -- inputs (already accepted by the ingestion gateway) -----------------
 
@@ -339,6 +342,19 @@ class VehicleTracker:
             last_fix_age_ms=age,
             etas=self._etas(track, now),
         )
+
+    def route_position(self, vehicle_id: str, now: SimTimeMs) -> tuple[int, float]:
+        """Index of the route segment the vehicle is on, and its offset in metres
+        along that segment (the planner's start state for replanning)."""
+        track = self._tracks[vehicle_id]
+        s_m = self.snapshot(vehicle_id, now).s_m
+        last = len(track.route_segments) - 1
+        index = 0
+        for j in range(last + 1):
+            if track.cumulative_m[j] <= s_m:
+                index = j
+        index = min(index, last)
+        return index, max(0.0, s_m - track.cumulative_m[index])
 
     def route(self, vehicle_id: str) -> list[str]:
         return list(self._tracks[vehicle_id].route)

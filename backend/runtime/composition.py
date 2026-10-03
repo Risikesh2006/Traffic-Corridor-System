@@ -50,13 +50,24 @@ class Runtime:
             status_feed=self.sim.network,
             presence_feed=self.sim.ambulances,
             signal_link=self.sim.network,
+            guidance_link=self.sim.guidance,
             profile=profile,
         )
         self._corridor_tick_ms = settings.corridor_tick_ms
 
     def add_ambulance(self, vehicle_id: str, route: list[str], priority: Priority) -> None:
+        """Fixed route, not replanned (baseline runs)."""
         self.sim.add_ambulance(vehicle_id, route, priority)
-        self.central.track_vehicle(vehicle_id, priority, route)
+        self.central.track_vehicle(vehicle_id, priority, route, managed=False)
+
+    def dispatch(
+        self, vehicle_id: str, priority: Priority, hospital_id: str | None = None
+    ) -> list[str] | None:
+        """Plan the first route from the ambulance entry node and start the trip."""
+        route = self.central.dispatch(vehicle_id, priority, hospital_id)
+        if route is not None:
+            self.sim.add_ambulance(vehicle_id, route, priority)
+        return route
 
     def step(self) -> None:
         now = self.sim.step()

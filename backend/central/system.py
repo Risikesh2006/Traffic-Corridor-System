@@ -19,7 +19,14 @@ from __future__ import annotations
 
 from core.clock import Clock, SimTimeMs
 from core.config import Settings
-from core.interfaces import PresenceFeed, SensorFeed, SignalLink, StatusFeed, VehicleFeed
+from core.interfaces import (
+    GuidanceLink,
+    PresenceFeed,
+    SensorFeed,
+    SignalLink,
+    StatusFeed,
+    VehicleFeed,
+)
 from core.models import (
     City,
     ControllerStatus,
@@ -32,6 +39,9 @@ from core.models import (
 )
 from events.bus import EventBus
 from ingestion.gateway import IngestionGateway
+from routing.context import WorldRoutingContext
+from routing.graph import RoutingGraph
+from routing.planner import RoutePlanner
 from safety.gate import SafeSignalLink
 from safety.supervisor import SafetySupervisor
 from state.history import HistoricalProfile
@@ -51,6 +61,7 @@ class CentralSystem:
         status_feed: StatusFeed,
         presence_feed: PresenceFeed,
         signal_link: SignalLink,
+        guidance_link: GuidanceLink,
         profile: HistoricalProfile | None = None,
     ) -> None:
         self.city = city
@@ -84,10 +95,43 @@ class CentralSystem:
             clock=clock,
         )
         self._tracked: dict[str, Priority] = {}
+        self.graph = RoutingGraph(city, settings)
+        self.routing_context = WorldRoutingContext(city, settings, self.world)
+        self.planner = RoutePlanner(
+            city=city,
+            graph=self.graph,
+            ctx=self.routing_context,
+            settings=settings,
+            clock=clock,
+            bus=self.bus,
+            guidance=guidance_link,
+            tracker=self.tracker,
+            controller_status=lambda node_id, now: (
+                self.world.intersection_view(node_id, now).controller_status
+            ),
+        )
 
-    def track_vehicle(self, vehicle_id: str, priority: Priority, route: list[str]) -> None:
-        self.tracker.register(vehicle_id, priority, route, self.clock.now())
+    def track_vehicle(
+        self, vehicle_id: str, priority: Priority, route: list[str], managed: bool = False
+    ) -> None:
+        now = self.clock.now()
+        self.tracker.register(vehicle_id, priority, route, now)
+        self.planner.register(vehicle_id, priority, route, managed, now)
         self._tracked[vehicle_id] = priority
+
+    def dispatch(
+        self, vehicle_id: str, priority: Priority, hospital_id: str | None
+    ) -> list[str] | None:
+        """Plan the first route from the ambulance entry node and start tracking it.
+        Returns the planned intersections, or None if no hospital is reachable."""
+        now = self.clock.now()
+        entry = self.city.ambulance_entry_node
+        nodes = self.planner.dispatch(vehicle_id, priority, hospital_id, entry, now)
+        if nodes is None:
+            return None
+        self.tracker.register(vehicle_id, priority, nodes, now)
+        self._tracked[vehicle_id] = priority
+        return nodes
 
     def step(self, now: SimTimeMs) -> None:
         # 1-2. drain feeds and ingest through the gateway
@@ -113,7 +157,9 @@ class CentralSystem:
         # 3-5. tracker update (world state is already current for this tick)
         self.tracker.update(now)
 
-        # Routing (Phase 5) and corridor planning (Phase 6) run here.
+        self.planner.step(now)
+
+        # Corridor planning (Phase 6) runs here.
 
     def snapshot_position(self, vehicle_id: str) -> EmergencyVehicle | None:
         if vehicle_id not in self._tracked:

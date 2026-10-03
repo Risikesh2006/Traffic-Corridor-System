@@ -31,7 +31,6 @@ APP_VERSION = "0.1.0"
 _DEFAULT_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", _DEFAULT_CONFIG_DIR))
 
-DEV_ROUTE = ["A6", "B6", "B5", "C5", "C4", "D4", "D3", "E3", "E2", "F2", "F1"]
 
 _dev_runtime: Runtime | None = None
 _dev_runner: RealtimeRunner | None = None
@@ -43,7 +42,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     global _dev_runtime, _dev_runner, _dev_task
     if os.environ.get("DEV_SIM") == "1":
         _dev_runtime = build_runtime(peak_multiplier=2.0)
-        _dev_runtime.add_ambulance("AMB-1", DEV_ROUTE, Priority.P1)
+        _dev_runtime.dispatch("AMB-1", Priority.P1, None)
         _dev_runner = RealtimeRunner(_dev_runtime, speed_multiplier=1.0)
         _dev_task = asyncio.create_task(_dev_runner.run())
 
