@@ -14,9 +14,21 @@ Amber eligibility: discharge continues through the first
 simplification standing in for "vehicles already committed may finish
 crossing" (ADR: amber discharge rule).
 
-Turning: each discharged vehicle draws through/left/right from the
-"turning" RNG stream and exits via `sim.topology`'s turn map and node
-exits; permissive (no protected-left timing) — ADR: permissive turns.
+Turning (PRD Phase 6 Stage 6.2, ADR-051): each discharged vehicle draws a
+TURN TYPE (through/near-side/far-side) from the "turning" RNG stream, then
+picks the matching MOVEMENT from its approach in the general junction
+model (`core/junctions.py`) — replacing the old compass TURN_MAP. The
+movement must be its OWN currently permitted one: ADR-050 found that a
+far-side turn can be in a different phase from the through/near-side
+movements of the same approach, so a single approach-level "is green"
+check is no longer sufficient — eligibility is re-checked at the specific
+movement before it is allowed to discharge, and a movement that is not
+currently served blocks the queue exactly like a full next segment (never
+discharges an unpermitted movement). If the drawn turn type has no
+matching movement at all from this approach (a 2-arm corner, for example,
+offers only one turn type), the vehicle exits the network — the same
+fallback the old model used at a grid border.
+
 A vehicle that cannot advance because the next segment is full blocks the
 whole queue until space frees up (ADR: head-of-line blocking).
 """
@@ -30,9 +42,9 @@ from dataclasses import dataclass
 from controller.intersection_controller import IntersectionController
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, SignalState
+from core.general_city import GeneralCity
+from core.models import SignalState, TurnType
 from core.rng import RngFactory
-from sim.topology import TURN_MAP, compute_approach_directions, compute_exits
 
 
 @dataclass
@@ -71,7 +83,7 @@ class SegmentTrafficState:
 class TrafficModel:
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         rng: RngFactory,
         controllers: dict[str, IntersectionController],
@@ -81,8 +93,13 @@ class TrafficModel:
         self._controllers = controllers
         self._turning_rng = rng.stream("turning")
         self._injections: list[_Injection] = []
-        self._approach_dir = compute_approach_directions(city)
-        self._exits = compute_exits(city)
+
+        # segment_id -> (approach_id, approach's junction id) it feeds.
+        self._approach_of: dict[str, tuple[str, str]] = {
+            approach.segment_id: (approach.id, node.id)
+            for node in city.intersections
+            for approach in node.approaches
+        }
 
         self.segments: dict[str, SegmentTrafficState] = {}
         for road in city.roads:
@@ -144,12 +161,10 @@ class TrafficModel:
     # -- internals -----------------------------------------------------
 
     def _is_eligible(self, segment_id: str, now: SimTimeMs) -> bool:
-        road = self.city.segment(segment_id)
-        controller = self._controllers[road.to_node]
+        approach_id, node_id = self._approach_of[segment_id]
+        controller = self._controllers[node_id]
         sm = controller.state_machine
-        direction = self._approach_dir[segment_id]
-        view = controller.signal_view()
-        state = view.get(direction, SignalState.ALL_RED)
+        state = controller.approach_view().get(approach_id, SignalState.ALL_RED)
         if state == SignalState.GREEN:
             return True
         if state == SignalState.AMBER:
@@ -189,19 +204,41 @@ class TrafficModel:
             seg.discharge_credit -= 1.0
 
     def _try_discharge_one(self, segment_id: str, seg: SegmentTrafficState, now: SimTimeMs) -> bool:
-        arrival_dir = self._approach_dir[segment_id]
-        turn = self._pick_turn()
-        exit_dir = TURN_MAP[arrival_dir][turn]
-        to_node = self.city.segment(segment_id).to_node
-        next_segment_id = self._exits.get(to_node, {}).get(exit_dir)
+        approach_id, node_id = self._approach_of[segment_id]
+        junction = self.city.intersection(node_id)
+        turn_type = self._pick_turn_type()
+        candidates = sorted(
+            (
+                m
+                for m in junction.movements
+                if m.approach_id == approach_id and m.turn_type == turn_type
+            ),
+            key=lambda m: m.id,
+        )
 
-        if next_segment_id is None:
-            # Exits the grid.
+        if not candidates:
+            # No movement of this turn type exists from this approach (e.g.
+            # a 2-arm corner only offers one turn type) — exits the network,
+            # the same fallback the old grid-only model used at a border.
             join_time = seg.queue.popleft()
             self._record_discharge(seg, join_time, now)
             self.total_exited += 1
             return True
 
+        movement = candidates[0]
+        controller = self._controllers[node_id]
+        state = controller.movement_view().get(movement.id, SignalState.ALL_RED)
+        if state not in (SignalState.GREEN, SignalState.AMBER):
+            return False  # this specific movement isn't currently permitted
+        if state == SignalState.AMBER:
+            sm = controller.state_machine
+            amber_elapsed = now - sm.state_started_at
+            amber_budget = sm.current_phase().amber_ms * self.settings.amber_discharge_fraction
+            if amber_elapsed >= amber_budget:
+                return False
+
+        exit_ = next(e for e in junction.exits if e.id == movement.exit_id)
+        next_segment_id = exit_.segment_id
         next_seg = self.segments[next_segment_id]
         if next_seg.occupancy() >= next_seg.capacity:
             return False  # head-of-line blocking
@@ -220,14 +257,17 @@ class TrafficModel:
         self.total_queue_delay_ms += now - join_time
         self.total_queue_delay_count += 1
 
-    def _pick_turn(self) -> str:
+    def _pick_turn_type(self) -> TurnType:
+        """Weighted by the existing through/left/right settings, mapped to
+        THROUGH/NEAR_SIDE/FAR_SIDE (near-side = left under the default
+        left-hand driving convention, ADR-039)."""
         r = self._turning_rng.random()
         s = self.settings
         if r < s.turn_through_prob:
-            return "through"
+            return TurnType.THROUGH
         if r < s.turn_through_prob + s.turn_left_prob:
-            return "left"
-        return "right"
+            return TurnType.NEAR_SIDE
+        return TurnType.FAR_SIDE
 
     # -- aggregate accounting ----------------------------------------------
 

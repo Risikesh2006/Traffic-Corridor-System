@@ -14,6 +14,15 @@ Stop-line behaviour:
 - GREEN but a queue exists ahead -> records how many vehicles were ahead of
   it (reduced by `yield_factor`, the fraction assumed to pull aside) and
   waits until that many have discharged from the segment.
+
+Migrated to the general junction model (PRD Phase 6 Stage 6.2, ADR-051):
+the ambulance's required signal is no longer "the approach's compass
+direction" but its specific MOVEMENT — the approach it arrives on, into the
+exit its next route segment departs by. ADR-050 found that a far-side turn
+can be in a different phase from the through/near-side movements of the
+same approach, so checking only the approach's general state would be
+wrong whenever the ambulance's own movement is a far-side turn held back
+while the rest of the approach is served.
 """
 
 from __future__ import annotations
@@ -25,8 +34,9 @@ from enum import StrEnum
 from controller.intersection_controller import IntersectionController
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, PresenceReading, Priority, SignalState
-from sim.topology import compute_approach_directions
+from core.general_city import GeneralCity
+from core.junctions import Junction
+from core.models import PresenceReading, Priority, SignalState
 from sim.traffic import TrafficModel
 
 
@@ -69,7 +79,7 @@ class AmbulanceSim:
 
     def __init__(
         self,
-        city: City,
+        city: GeneralCity,
         settings: Settings,
         traffic: TrafficModel,
         controllers: dict[str, IntersectionController],
@@ -78,7 +88,6 @@ class AmbulanceSim:
         self.settings = settings
         self.traffic = traffic
         self._controllers = controllers
-        self._approach_dir = compute_approach_directions(city)
         self.ambulances: dict[str, SimAmbulance] = {}
         self._presence: list[PresenceReading] = []
         self._presence_seq = 0
@@ -165,6 +174,35 @@ class AmbulanceSim:
         # Reached the stop line at `to_node`.
         self._handle_stop_line(amb, to_node, now)
 
+    def _required_movement_id(self, amb: SimAmbulance, junction: Junction) -> str | None:
+        """The movement (approach -> exit) the ambulance needs at the
+        junction it is departing `amb.current_segment_id` into, from its
+        current route. None if the ambulance has no further segment (its
+        route ends at this junction)."""
+        if amb.route_index >= len(amb.route) - 1:
+            return None
+        assert amb.current_segment_id is not None
+        next_segment_id = f"{amb.route[amb.route_index]}->{amb.route[amb.route_index + 1]}"
+        approach = next(a for a in junction.approaches if a.segment_id == amb.current_segment_id)
+        exit_ = next(e for e in junction.exits if e.segment_id == next_segment_id)
+        movement = next(
+            (
+                m
+                for m in junction.movements
+                if m.approach_id == approach.id and m.exit_id == exit_.id
+            ),
+            None,
+        )
+        return movement.id if movement is not None else None
+
+    def _signal_for_required_movement(self, amb: SimAmbulance, to_node: str) -> SignalState:
+        junction = self.city.intersection(to_node)
+        movement_id = self._required_movement_id(amb, junction)
+        if movement_id is None:
+            return SignalState.ALL_RED  # no next segment: shouldn't be asked, treat as stop
+        controller = self._controller_at(to_node)
+        return controller.movement_view().get(movement_id, SignalState.ALL_RED)
+
     def _handle_stop_line(self, amb: SimAmbulance, to_node: str, now: SimTimeMs) -> None:
         amb.route_index += 1
         self._record_presence(amb, to_node, now)
@@ -179,10 +217,7 @@ class AmbulanceSim:
 
         segment_id = amb.current_segment_id
         assert segment_id is not None
-        controller = self._controller_at(to_node)
-        direction = self._approach_dir[segment_id]
-        view = controller.signal_view()
-        signal = view.get(direction, SignalState.ALL_RED)
+        signal = self._signal_for_required_movement(amb, to_node)
         queue_len = self.traffic.queue_length(segment_id)
 
         if signal == SignalState.GREEN and queue_len == 0:
@@ -208,12 +243,14 @@ class AmbulanceSim:
 
     def _record_presence(self, amb: SimAmbulance, node_id: str, now: SimTimeMs) -> None:
         self._presence_seq += 1
-        direction = self.city.approach_direction(f"{amb.route[amb.route_index - 1]}->{node_id}")
+        segment_id = f"{amb.route[amb.route_index - 1]}->{node_id}"
+        junction = self.city.intersection(node_id)
+        approach = next(a for a in junction.approaches if a.segment_id == segment_id)
         self._presence.append(
             PresenceReading(
                 source_id=f"detector-{node_id}",
                 intersection_id=node_id,
-                approach_direction=direction,
+                approach_id=approach.id,
                 vehicle_id=amb.vehicle_id,
                 timestamp=now,
                 sequence=self._presence_seq,
@@ -230,9 +267,7 @@ class AmbulanceSim:
         segment_id = amb.current_segment_id
         assert segment_id is not None
         to_node = amb.route[amb.route_index]
-        controller = self._controller_at(to_node)
-        direction = self._approach_dir[segment_id]
-        signal = controller.signal_view().get(direction, SignalState.ALL_RED)
+        signal = self._signal_for_required_movement(amb, to_node)
 
         if amb.state == AmbulanceState.STOPPED_AT_RED:
             if signal != SignalState.GREEN:
