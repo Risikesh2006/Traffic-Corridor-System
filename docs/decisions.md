@@ -751,3 +751,144 @@ normal. A zero prior is only ever the no-profile test condition.
 
 **Consequences.** The system errs toward delay and assumed congestion. This costs
 time, never safety, consistent with ADR-016.
+---
+
+## ADR-032: Route delivery as a guidance link, and CANNOT_FOLLOW for committed divergence
+
+**Context.** Central code must push routes to the vehicle (FR-RT). The vehicle is already moving, so a new route can only be followed up to the point where it still agrees with the old one.
+
+**Decision.** `core/interfaces.py` gains `GuidanceLink` (`send_route`, `drain_acks`). The simulated implementation (`sim/guidance.py`) delivers after `guidance_latency_s` (30 ms), waits `reaction_delay_s` (2 s) before adopting, and ignores any version not newer than the one last adopted. An ambulance on segment `route[k] -> route[k+1]` is committed to `route[k+1]`, so a new route must keep both nodes. Otherwise it answers `CANNOT_FOLLOW` and keeps its route; the planner then replans from the vehicle's true position.
+
+**Consequences.** The vehicle never switches to a route it cannot physically follow. Every outcome is acknowledged, so the planner knows what is in effect, and the tracker's route changes only on `ADOPTED`.
+
+---
+
+## ADR-033: Density to BPR volume/capacity mapping
+
+**Context.** BPR (PRD 11.1) needs a volume/capacity ratio. The world state gives density in vehicles per km per lane, not flow.
+
+**Decision.** `x = min(density / critical_density, route_x_max)`, with `jam_density = 1000 / jam_spacing_m` per lane (7.5 m spacing, about 133 veh/km/lane), `critical_density = jam_density * route_critical_density_fraction` (0.5, about 67 veh/km/lane) and `route_x_max = 1.5`. BPR then uses the PRD's alpha 0.15 and beta 4, and the increment is scaled by `congestion_sensitivity` (0.5), because an ambulance is slowed less than other traffic. Free time is `length / min(free_flow * ambulance_speed_factor, ambulance_speed_cap_mps)`, with the cap at 20 m/s.
+
+**Consequences.** The fraction 0.5 is a modelling choice, not a measured value. Capping `x` bounds the BPR slowdown at about 38%. Queues carry most of the congestion cost (ADR-036): a queue of 50 vehicles adds about 52 s, while the BPR term adds about 1 s at a density of 75 veh/km/lane.
+
+---
+
+## ADR-034: Admissible, consistent heuristic
+
+**Context.** A* returns optimal routes only with an admissible heuristic, and it never reopens closed states only with a consistent one.
+
+**Decision.** `h(s) = min over goals of straight_line(to_node(s), goal) / ambulance_speed_cap`.
+
+**Proof sketch.** Every segment costs at least `length / cap`, because travel time is at least the free time at the speed cap and every penalty is non-negative. A straight line between two nodes is never longer than a road path between them, so `h` never exceeds the true remaining cost: it is admissible. For a transition `s -> s'`, the cost of `s'` is at least `dist(to(s), to(s')) / cap`, and by the triangle inequality `dist(to(s), g) <= dist(to(s), to(s')) + dist(to(s'), g)`. So `h(s) <= c(s, s') + h(s')`: it is consistent.
+
+**Consequences.** Tests check admissibility against Dijkstra over every 7th segment and every 5th goal, and consistency on every transition in the graph.
+
+---
+
+## ADR-035: Time-aware costs, and the approximation they introduce
+
+**Context.** A segment 20 minutes away will be entered in a different traffic state. The brief asks for forecast blending without the full machinery of time-dependent shortest paths.
+
+**Decision.** A segment entered `dt` seconds from now uses `w * current + (1 - w) * historical(entry)` with `w = exp(-dt / forecast_tau_s)` and `forecast_tau_s = 120`. The entry time is `now + g`, where `g` is the cost accumulated so far. A* keeps the cheapest arrival per segment. With time-dependent costs strict optimality is no longer guaranteed, so every returned path is re-evaluated by `evaluate_path`, and that exact value is what a decision reports.
+
+**Consequences.** Time-dependent costs can break strict optimality. In the tests the forecast is frozen (`forecast_tau_s = 1e9`), which makes the Dijkstra comparison exact. In operation the error is small because blending matters only beyond a few minutes.
+
+---
+
+## ADR-036: Normal signal delay in every stop-line cost, plus an uncontrollable penalty
+
+**Context.** The first version costed a red light only at an intersection the planner could not command. The 10-minute report showed the planned route predicted at 239 s and actually taking 423 s, with 244 s stopped against 128 s on the baseline. Every stop line is a red light, and the model ignored it.
+
+**Decision.** Every segment carries `signal_s`, the expected red wait at its downstream stop line under normal operation: `eta_expected_red_fraction * cycle`. An uncontrollable downstream intersection (no fresh report, unreachable, or flashing) adds `uncontrollable_penalty_s` (45 s) on top of that.
+
+**Consequences.** Routes now reflect signal delay, but the model still overestimates trip time: in the first report it predicted 611 s for the planned route against 423 s observed. The red fraction is a fixed share of the cycle, and the real schedule is only partly known. What matters more is the ranking of routes, so the report prints the model's cost for the fixed baseline route next to the planned route. In the jam-on-B4-to-C4 scenario the model put the planned route at 611 s and the baseline at 677 s, yet the baseline arrived sooner. This is a known calibration gap, not solved in this phase.
+
+---
+
+## ADR-037: Stability rules: hysteresis as max(abs, rel), dwell, commitment, one route in flight
+
+**Context.** PRD FR-RT-04 says "better by more than 15 s or 10%", while PRD 11.5 writes `max(15 s, 0.10 x old cost)`. The two readings differ: "or" switches more easily. Flapping between near-equal routes is the main risk to the crew's trust in the guidance.
+
+**Decision.** Use the stricter `max` reading, as the brief specified. Adopt a candidate only if its gain exceeds `max(hysteresis_abs_s, hysteresis_rel * current remaining cost)`, at least `min_route_dwell_s` (20 s) has passed since the last switch, the vehicle is outside the commitment zone (within `commitment_distance_m`, 80 m, or less than `commitment_time_s`, 8 s, from the junction), and no other route is awaiting acknowledgement. A blocked route overrides all of these. Each rejected candidate is recorded with its reason.
+
+**Consequences.** This is a deliberate deviation from the wording of FR-RT-04 (it is stricter). The cost is that a real but small improvement can be ignored. The commitment zone means the vehicle does not change its mind at the junction it is about to enter, and the one-route-in-flight rule stops two overlapping routes being sent at once.
+
+---
+
+## ADR-038: Edge-based search, with U-turns banned by default
+
+**Context.** Turn penalties and U-turn bans need turn-level state, which intersection-level search cannot express.
+
+**Decision.** Search runs over directed segments. A transition from segment `a` to `b` carries its turn type, and transitions are precomputed once at startup. U-turns are excluded unless `allow_u_turns` is set.
+
+**Consequences.** The state space is about 120 segments. Turn penalties and U-turn bans are exact, and the search stays small enough to run every second.
+
+---
+
+## ADR-039: Turn penalties by near-side and far-side, with a configurable driving side
+
+**Context.** The brief asks for turn costs by turn type, and notes that the side depends on the driving convention: India drives on the left, so a left turn is near-side there, and right-hand traffic reverses that. The city model has no driving-side field.
+
+**Decision.** Turns are classified as THROUGH, NEAR_SIDE, FAR_SIDE or U_TURN. The class comes from the sign of the cross product of the incoming and outgoing travel vectors in screen orientation (y grows south, as in `sim/topology.py` and the dev map): a negative cross product is a left turn. `driving_side` (default `left`) decides which class is near-side. Penalties: through 0 s, near-side 3 s, far-side 5 s.
+
+**Consequences.** The default follows the brief's left-hand assumption, which the user should confirm. The orientation assumption is covered by `test_left_and_right_are_classified_in_screen_orientation`. Changing the driving side needs no code change.
+
+---
+
+## ADR-040: Uncertainty penalty, which can only make a road less attractive
+
+**Context.** Stale or low-confidence data must not make a road look better than it is.
+
+**Decision.** `uncertainty = (1 - w * confidence) * uncertainty_weight * travel`, with `uncertainty_weight = 0.2`. The penalty is non-negative, so a stale road is never cheaper.
+
+**Consequences.** `test_stale_data_never_makes_a_road_cheaper` enforces this direction.
+
+---
+
+## ADR-041: Deterministic tie-breaking everywhere in routing
+
+**Context.** The brief requires the same input to give the same route every time.
+
+**Decision.** Frontier entries are ordered by (f, g, insertion counter). Starts and neighbours are sorted. Yen's candidate heap is ordered by (cost, counter). No dict or set iteration order influences a result.
+
+**Consequences.** `test_search_is_deterministic` and the seeded integration tests confirm identical decision histories for identical seeds.
+
+---
+
+## ADR-042: Yen's diversity filter and a resumable compute budget
+
+**Context.** A backup route is only useful if it does not fail together with the primary when a shared road closes. Yen's search can also be expensive.
+
+**Decision.** An alternative is kept only if less than `route_alternative_overlap_max` (0.7) of its length is shared with the primary or with any kept alternative. Work is budgeted in A* expansions (`route_alternative_budget_expansions`, 400 per central step). Spur searches are not split, so one step can overrun the budget by one search. The queue of pending spurs persists, so the result is identical whether the budget is spent in one call or many.
+
+**Consequences.** Alternatives appear within a few steps of each route change. The overrun is bounded by one spur search, which is small on this network. The report measured about 85 to 95 Yen expansions per central step.
+
+---
+
+## ADR-043: Replan triggers, coalescing, and the fast-path switch
+
+**Context.** The brief lists triggers from several sources, and asks for an immediate switch to a backup when the current route is blocked.
+
+**Decision.** Triggers: periodic (10 s), ETA drift over 15%, a closed road ahead, a controllability change at an intersection on the route, an unavailable assigned hospital, ROUTE_DEVIATION from the event bus, and CANNOT_FOLLOW. Triggers accumulate per vehicle and cause one plan per step. A blocked route first tries the precomputed alternatives: one that starts from the current segment and avoids closed roads is adopted in the same step (FAST_PATH), and a full replan then runs, subject to ADR-037. Alternatives are rebased when the vehicle enters the next segment and dropped when they no longer start from it.
+
+**Consequences.** The fast path adds no extra step. In the closure scenario the planner detected the closure one central step after it was applied (61 s, closure at 60 s) and adopted a bypass in that same step. The fast path with a valid precomputed backup is exercised by a unit test rather than by the report scenario, because in that scenario the alternatives all shared the approach to the closed segment.
+
+---
+
+## ADR-044: Routes never revisit an intersection, and set_route keeps tracking state
+
+**Context.** The tracker looks up stop lines by node (`route.index(node)`), which is ambiguous if a route loops. Replacing the tracker's route must not forget that stop lines were already passed, or passage events would fire again.
+
+**Decision.** The planner bans every segment that enters an intersection already passed or already on the route, and rejects any candidate that would still revisit a node. `tracker.set_route` replaces only the route fields (route, segments, cumulative distances) and keeps the filter, the passed set and all stop-line state, which is valid because the new route shares the travelled prefix.
+
+**Consequences.** Passage events cannot fire twice for the same stop line after a reroute. The search space excludes looping routes, which are never useful on this network.
+
+---
+
+## ADR-045: Tick order gains route delivery and injected congestion
+
+**Context.** The simulator's fixed tick order (ADR-009) must include the new guidance link and the congestion fault.
+
+**Decision.** Step 2b delivers due route pushes (`SimGuidance.step`). Step 6b applies `inject_congestion` faults after demand. Both sit where their inputs are known, and the order is fixed so determinism holds.
+
+**Consequences.** `state_hash` changes for runs that use the new steps, which is expected. The seeded determinism tests still pass.

@@ -121,7 +121,8 @@ backend/
                commands through)
   state/       world state, freshness, historical profiles — empty until Phase 4
   tracking/    vehicle tracker, ETA, dead reckoning — empty until Phase 4
-  routing/     cost model, A*, Yen's — empty until Phase 5
+  routing/     edge-based graph, BPR cost model, A*, Yen's alternatives, route
+               planner with stability rules (central — no sim/controller imports)
   corridor/    preemption timing, leases, neighbour coordination — empty until Phase 6
   events/      event bus, event store, replay — empty until Phase 8
   health/      heartbeats, mode manager — empty until Phase 8
@@ -143,7 +144,7 @@ docs/
 docker-compose.yml
 ```
 
-## Current phase: Phase 4 complete
+## Current phase: Phase 5 complete
 
 Phase 4 adds the perception layer: `ingestion/` (validation, deduplication,
 ordering, clock skew), `state/` (world state and historical priors), `tracking/`
@@ -151,9 +152,22 @@ ordering, clock skew), `state/` (world state and historical priors), `tracking/`
 `runtime/` (the composition root, the only module that imports both `sim/` and
 central code; only `api/` and `scripts/` may import it).
 
-Historical priors and the tracking evaluation:
+Phase 5 adds `routing/`. Its rules:
+- Search is over directed segments (edge-based), with U-turns banned unless
+  `allow_u_turns` is set. Costs come only from `routing/cost.py::step_cost`, so A*
+  and path evaluation can never disagree.
+- Routing reads world state only through `routing/context.py::WorldRoutingContext`.
+  Never import `sim/` or `controller/` from `routing/`.
+- Routes reach the vehicle only through `GuidanceLink`. A route is in effect only
+  after the vehicle acknowledges it (`RouteAckStatus.ADOPTED`).
+- Every route change has a recorded decision with an explanation. Switching
+  thresholds, dwell and commitment live in `routing/planner.py` and are described
+  in ADR-037. Do not loosen them without an ADR.
+
+Historical priors, the tracking evaluation, and the routing evaluation:
 
 ```bash
 python -m backend.scripts.build_history
 python -m backend.scripts.tracking_report --seed 4417 --minutes 10 --gps-loss 60:20 --stale-sensors B:120:90
+python -m backend.scripts.routing_report --seed 4417 --minutes 10 --jam C5->C4:120:300
 ```

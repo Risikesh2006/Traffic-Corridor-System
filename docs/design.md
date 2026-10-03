@@ -169,6 +169,17 @@ NORMAL/DEGRADED --[safety supervisor down / planner unrecoverable]--> SAFE
 SAFE --[components healthy again]--> DEGRADED --> NORMAL
 ```
 
+### Routing (Phase 5)
+
+Data flows one way: world state and the tracked position feed the cost model
+(`routing/cost.py`, through the `RoutingContext` adapter in `routing/context.py`).
+The cost model feeds A* (`routing/astar.py`), which feeds Yen's alternatives
+(`routing/yen.py`) and the planner (`routing/planner.py`). The planner writes
+decisions and events, and sends routes through `GuidanceLink`. The simulated
+ambulance acknowledges each route (`sim/guidance.py`), and the tracker takes the
+new route into effect only when it is acknowledged. Central code never imports
+the simulator: routes reach the vehicle through the interface alone.
+
 ## 3. Technical Reasoning
 
 **Why two safety layers instead of one.** A single central checker would
@@ -207,6 +218,50 @@ covered. The mutation tests (ADR-019) then prove the other direction: that
 disabling a real check gets caught, so the property/stateful tests aren't
 passing vacuously.
 
+**Why A* over an edge-based graph, and not D* Lite or contraction hierarchies.**
+The network has about 120 directed segments. Measured over the 10-minute report,
+a whole planner step (including Yen's alternatives) took 88 ms at p95 and 115 ms
+at most, against a full-replan budget of 300 ms (PRD §14.1). D* Lite pays off when costs change constantly and
+the search must be repaired incrementally; here it is simpler to replan from
+the vehicle's current position every time (FR-RT-05) than to maintain a repair
+state. Contraction hierarchies need a static graph, and our costs change every
+second with congestion. The search runs over directed segments (ADR-038) so turn
+penalties and U-turn bans are exact.
+
+**Why this cost model.** Each component is separate because the explanation has to
+name it (ADR-033 to ADR-040). Travel time follows BPR with the density mapped
+through a documented critical density, and the ambulance's congestion sensitivity
+is below one because other vehicles make way. Queue clearance and the normal
+signal delay are both charged at every stop line, because the first version
+charged signal delay only at uncontrollable intersections and then predicted
+239 s for a trip that took 423 s. Stale data never reduces a cost. A forecast
+blends the current density with history by how far away the segment is (ADR-035),
+because the traffic a segment has when the ambulance arrives is what matters.
+
+**Why hysteresis, dwell and a commitment zone.** A route that changes every few
+seconds gives the crew nothing to act on, and the ambulance may be part-way
+through a junction when the advice changes. The gain must exceed the larger of
+15 s and 10% of the remaining cost (the stricter reading of FR-RT-04, ADR-037),
+the last switch must be at least 20 s old, and the vehicle must be more than 80 m
+and 8 s from the next junction. A blocked route is the one exception, because
+continuing on it is worse than any flapping.
+
+**Why diverse alternatives.** The point of a backup is that it survives the failure
+of the primary. Two candidates that share 90% of their road fail together, so
+Yen's search keeps a candidate only if less than 70% of its length is shared with
+the primary or with an existing alternative (ADR-042). The search is budgeted per
+central step and resumes deterministically, so it never delays the primary route.
+
+**What the evaluation shows, and what it does not.** In the closure scenario the
+planner switched off the closed road one step after it was applied and adopted a
+bypass. In the jam scenario the planner's route was not better in practice
+(423 s against 337 s for the fixed baseline), although the model had ranked it
+first. The likely causes are the signal delay, which the model approximates by a
+fixed share of the cycle, and pedestrian extensions, which lengthen greens and
+are absent from the projected schedule (the same gap that limits the 60 s ETA
+window in Phase 4). The route ranking is therefore not yet validated against
+outcomes, and calibrating it is the first item for the next iteration (ADR-036).
+
 ## 4. Failure & Edge Cases
 
 | Case | Handling | Proven by |
@@ -218,10 +273,35 @@ passing vacuously.
 | Hold would starve a cross-street approach | Controller interrupts its own hold to serve the starved approach, then resumes (INV-06), with zero central involvement | `test_controller_guard.py::test_local_max_hold_serves_starved_approach` |
 | Pedestrian call mid-green | Green is floored past `ped_walk_ms + ped_clearance_ms`, deferring even a pending preemption request (INV-05) | `test_pedestrians.py`, checker INV-05 |
 | Conflict monitor forces FLASHING_RED mid-transition | Allowed to cut amber/all-red/min-green/ped-clearance short — this is the fail-safe override, not a timing violation (see ADR-019) | `test_safety_properties.py` (found this exact case at 10,000 examples) |
+| Route blocked by a closed road ahead | Always replaced, ignoring dwell and commitment; a precomputed backup starting from the current segment is adopted in the same step (fast path). Measured: closure at 60 s, bypass adopted at 61 s | `test_routing_planner.py::test_blocked_route_switches_even_inside_dwell_and_commitment`, `::test_fast_path_switches_in_the_same_step_to_a_precomputed_backup`, integration `test_planner_switches_off_a_closed_road_without_flapping` |
+| Ambulance already committed past the divergence point | The vehicle answers `CANNOT_FOLLOW` and keeps its route; the planner replans from the true position | `test_guidance.py::test_route_that_diverges_after_the_ambulance_passed_is_refused`, `test_routing_planner.py::test_cannot_follow_ack_keeps_the_route_and_requests_a_replan` |
+| Route pushed twice or out of order | Older versions never overwrite newer ones; the vehicle acknowledges each outcome | `test_guidance.py::test_older_route_versions_never_overwrite_newer_ones` |
+| Route change in flight | Nothing new is adopted until the previous route is acknowledged (blocked routes excepted) | `test_routing_planner.py::test_no_second_switch_while_the_previous_route_is_unacknowledged` |
+| Stale data on a route segment | Confidence scales an uncertainty penalty up, never down, so stale roads are never preferred | `test_routing_cost.py::test_stale_data_never_makes_a_road_cheaper` |
+| No live data for a segment | Historical prior, inflated by the pessimism factor, and marked stale | ADR-031, `test_world_state.py` |
+| Uncontrollable downstream intersection | Penalty of `uncontrollable_penalty_s` on top of the normal red wait; a status change triggers a replan of every vehicle routed through it | `test_routing_cost.py::test_uncontrollable_downstream_node_adds_the_configured_penalty`, `test_routing_planner.py` trigger coverage |
+| Assigned hospital unavailable | Goal falls back to any available hospital and triggers a replan (FR-RT-07) | Trigger path in `RoutePlanner._detect_triggers` |
+| Hospital unreachable | Dispatch returns no route instead of an empty one | `test_routing_planner.py::test_dispatch_returns_none_when_the_hospital_cannot_be_reached` |
+| Route revisits a passed intersection | Banned in the search and rejected in the planner, so stop-line passage cannot fire twice | `test_routing_planner.py` (route geometry), ADR-044 |
+| Two near-equal routes (flapping risk) | Hysteresis of max(15 s, 10%), 20 s dwell, commitment zone; every rejection is recorded with its reason | `test_routing_planner.py::test_small_gain_is_rejected_with_the_threshold_reason`, `::test_minimum_dwell_blocks_a_switch`, `::test_commitment_zone_blocks_a_switch_near_the_junction` |
+| Congestion on the planned route | Replans when the remaining cost drifts over 15%; switches only when the gain beats the stability rules. Measured with a 3000 vph jam on C4-D4 from 60 s, the best bypass was 7 s cheaper, below the 41 s threshold, so the planner kept its route. A jam on C5-C4, which the planned route does not use, needed no switch | Report runs (see `docs/routing_report_example.txt`); `test_routing_integration.py` |
 
 ## 5. Trade-offs
 
-_To be expanded. See `docs/decisions.md` for trade-offs already recorded,
+**Greedy replanning versus global optimisation (Phase 5).** The planner replans
+each vehicle from its current position and does not optimise the whole corridor.
+That is what makes it fast and explainable, and it is safe because each route is
+checked against the stability rules. The cost is that one ambulance's best route
+can take a red light that a corridor-wide plan would have spread across the
+network. Phase 6 (corridor preemption) is where that trade-off has to be revisited.
+
+**Stability versus optimality (Phase 5).** The hysteresis, dwell and commitment
+rules mean the vehicle sometimes keeps a route that a fresh search would reject.
+The report's 7 s bypass under the C4-D4 jam was ignored for exactly this reason.
+This favours trust in the advice over a small expected saving, and the choice is
+recorded per decision, so it can be tuned with evidence.
+
+_The earlier trade-offs are still recorded in `docs/decisions.md`,
 in particular ADR-006 through ADR-008 (point-queue model, permissive
 turns, head-of-line blocking) and ADR-015/ADR-017 (bounded idempotency
 store; reject-don't-cap hold policy) — each trades either simulation

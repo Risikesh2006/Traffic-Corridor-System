@@ -11,6 +11,20 @@ Guide for AI coding sessions: [`CLAUDE.md`](CLAUDE.md).
 
 ## Status
 
+Phase 5 complete: route planning. The ambulance is dispatched to a hospital
+(or the best available one), gets an edge-based A* route over a BPR cost model
+that charges queues, signal delay, turns, stale data and uncontrollable
+junctions, and is replanned under explicit stability rules (hysteresis, dwell,
+commitment zone). Blocked routes switch at once to a precomputed, diverse backup.
+Every decision is recorded with an explanation. Measured in the evaluation
+scripts: a closed road is avoided one step after it is applied, but the cost
+model does not yet rank routes reliably against trip outcomes (see
+`docs/routing_report_example.txt` and `docs/design.md`).
+
+Phase 4 complete: the perception layer — ingestion with deduplication and
+clock-skew handling, a world state with confidence and historical priors, a
+vehicle tracker with dead reckoning and ETAs, and a central orchestrator.
+
 Phase 3 complete: the two-layer safety architecture — a central
 `SafetySupervisor` (policy) and a local controller guard (exact timing),
 connected only through a fail-closed `SafeSignalLink` gate with HMAC-signed
@@ -18,8 +32,8 @@ approvals, plus an independent `InvariantChecker` that never trusts either
 layer's own verdict. Proven with property-based (10,000 examples), stateful,
 full-simulation, and mutation testing — see `docs/safety_report_example.txt`
 for a 20-seed evidence run (0 violations). There is still no routing or
-corridor planning (Phases 5+); the ambulance follows a manually supplied
-route and commands are sent manually in tests/scripts. See `docs/PRD.md`
+corridor preemption (Phase 6 onwards); commands are still sent manually in
+tests and scripts. See `docs/PRD.md`
 §22 (Delivery Phases) for the full build plan.
 
 ## Repository structure
