@@ -171,3 +171,12 @@ python -m backend.scripts.build_history
 python -m backend.scripts.tracking_report --seed 4417 --minutes 10 --gps-loss 60:20 --stale-sensors B:120:90
 python -m backend.scripts.routing_report --seed 4417 --minutes 10 --jam C5->C4:120:300
 ```
+
+## Multi-session work
+
+Phase 6 spans several sessions. Its prompt is saved at `docs/specs/phase-6-real-city.md`, and its progress is tracked in `docs/progress/phase-6.md`.
+- Start a session by reading CLAUDE.md, the progress file, and the current stage in the spec.
+- Work only on the current stage. Keep commits small, and keep the full suite green after each commit.
+- End a session by updating the progress file with status, commits, test results and an exact next step, then committing it.
+- Never skip a checkpoint, and never skip a gate condition.
+

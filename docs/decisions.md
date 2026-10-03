@@ -892,3 +892,23 @@ time, never safety, consistent with ADR-016.
 **Decision.** Step 2b delivers due route pushes (`SimGuidance.step`). Step 6b applies `inject_congestion` faults after demand. Both sit where their inputs are known, and the order is fixed so determinism holds.
 
 **Consequences.** `state_hash` changes for runs that use the new steps, which is expected. The seeded determinism tests still pass.
+
+---
+
+## ADR-046: Conflicts from circular chord-crossing geometry
+
+**Context.** Signal phasing must never allow two conflicting movements to be green together (INV-01). Hand-authored conflict tables do not scale to real junctions with irregular shapes, skewed arms and one-way approaches, and they are error-prone.
+
+**Decision.** Each approach and exit is placed on a circle around the junction at its compass bearing. A movement is the chord from its approach point to its exit point. Two movements conflict when their chords cross (endpoints interleave around the circle), or when different approaches feed the same exit (merge). Movements from the same approach never conflict. U-turns conflict with all other approaches by default. A configurable "free near-side turn" removes crossing conflicts for near-side movements but keeps merge conflicts (common in Indian cities under left-hand driving). Turn types come from the signed heading change between arrival and departure. The test uses only the circular order of endpoints, so it does not depend on the map's coordinate orientation.
+
+**Consequences.** Conflicts are derived from geometry for any junction shape and are unit-tested on 4-way, T, Y, 5-way and skewed junctions, with Hypothesis properties. Free near-side turns are a deliberate relaxation: they must be configured per junction class and are documented as an assumption.
+
+---
+
+## ADR-047: Expand, migrate, contract for the junction model
+
+**Context.** The junction model is used by controllers, the safety supervisor, the invariant checker, the simulator, state, tracking and routing. Replacing it in one step would break the safety layer for a long stretch with no way to check progress, and would weaken the safety guarantees the Phase 3 tests protect.
+
+**Decision.** Add the general model beside the existing one (expand). Migrate one module per commit, keeping the full suite green after each (migrate). Delete the old model, its loader path and the temporary adapter once nothing depends on them (contract). A boundary test forbids the old names from reappearing. Safety tests may change how junctions are constructed, never what they assert.
+
+**Consequences.** Each commit is small and reversible. Progress is recorded in `docs/progress/phase-6.md`, so work can resume across sessions. The temporary adapter is a cost: it must be verified against the old grid exactly, and then removed.
