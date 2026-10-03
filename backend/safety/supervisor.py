@@ -215,9 +215,7 @@ class SafetySupervisor:
                 continue  # expected to be red — that's the point of the hold
             projected_red_ms = (hold_until - red_since) + view_age_ms
             if projected_red_ms > self.settings.max_hold_ms:
-                return self._reject(
-                    ReasonCode.MAX_HOLD_EXCEEDED, limit_s=self.settings.max_hold_s
-                )
+                return self._reject(ReasonCode.MAX_HOLD_EXCEEDED, limit_s=self.settings.max_hold_s)
         return None
 
     def _check_rate_limit(self, command: Command, now: SimTimeMs) -> Decision | None:

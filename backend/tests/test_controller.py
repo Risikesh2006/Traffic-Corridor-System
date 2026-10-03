@@ -169,9 +169,7 @@ def test_clear_pending_request_resumes_normal_cycling():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
     held_phase_id = sm.current_phase_id
-    configured_green_ms = next(
-        e.green_ms for e in node.default_plan if e.phase_id == held_phase_id
-    )
+    configured_green_ms = next(e.green_ms for e in node.default_plan if e.phase_id == held_phase_id)
     sm.request_phase_change(held_phase_id, now=0)
     sm.tick(configured_green_ms + 5000)
     assert sm.state == SignalState.GREEN  # still held
@@ -251,6 +249,7 @@ def test_signal_changed_events_emitted():
 
 
 # --- Hypothesis property test: INV-01..04 always hold -----------------
+
 
 @hyp_settings(
     max_examples=200,

@@ -55,9 +55,7 @@ class CorridorSafetyMachine(RuleBasedStateMachine):
         self.network = SimNetwork(settings, self.rng, self.controllers)
         self.supervisor = SafetySupervisor(city, settings, self.clock, secret=SECRET)
         self.gate = SafeSignalLink(self.network, self.supervisor, self._view_of, self.clock)
-        self.checker = InvariantChecker(
-            city, settings, self.controllers, hmac_secret=SECRET
-        )
+        self.checker = InvariantChecker(city, settings, self.controllers, hmac_secret=SECRET)
         self._cmd_seq = 0
 
     def _view_of(self, intersection_id: str) -> IntersectionView:

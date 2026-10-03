@@ -35,9 +35,7 @@ _command_op = st.tuples(
     st.sampled_from(["correct", "wrong", "missing"]),  # approval
 )
 
-_ops = st.lists(
-    st.one_of(_tick_op, _flashing_op, _command_op), min_size=1, max_size=150
-)
+_ops = st.lists(st.one_of(_tick_op, _flashing_op, _command_op), min_size=1, max_size=150)
 
 
 def _build():
