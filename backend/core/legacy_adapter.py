@@ -175,8 +175,8 @@ def adapt_hospital(hospital: Hospital) -> Hospital:
 
 def adapt_to_legacy_city(general: GeneralCity, settings: Settings) -> City:
     return City(
-        intersections=[adapt_intersection(j, settings) for j in general.junctions],
-        roads=[adapt_segment(s) for s in general.segments],
+        intersections=[adapt_intersection(j, settings) for j in general.intersections],
+        roads=[adapt_segment(s) for s in general.roads],
         hospitals=[adapt_hospital(h) for h in general.hospitals],
         ambulance_entry_node=general.ambulance_entry_node,
     )

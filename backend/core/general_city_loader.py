@@ -31,15 +31,15 @@ def load_general_city(path: str | Path, settings: Settings) -> GeneralCity:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
 
     try:
-        junctions = tuple(Junction(**j) for j in raw["junctions"])
-        segments = tuple(GeneralRoadSegment(**s) for s in raw["segments"])
+        junctions = tuple(Junction(**j) for j in raw["intersections"])
+        segments = tuple(GeneralRoadSegment(**s) for s in raw["roads"])
         hospitals = tuple(Hospital(**h) for h in raw["hospitals"])
     except (ValidationError, KeyError, TypeError) as exc:
         raise GeneralCityValidationError(f"malformed city file: {exc}") from exc
 
     city = GeneralCity(
-        junctions=junctions,
-        segments=segments,
+        intersections=junctions,
+        roads=segments,
         hospitals=hospitals,
         ambulance_entry_node=raw["ambulance_entry_node"],
     )
@@ -57,12 +57,12 @@ def load_general_city(path: str | Path, settings: Settings) -> GeneralCity:
 
 
 def _validate_unique_ids(city: GeneralCity) -> None:
-    junction_ids = [j.id for j in city.junctions]
+    junction_ids = [j.id for j in city.intersections]
     if len(junction_ids) != len(set(junction_ids)):
         dupes = {x for x in junction_ids if junction_ids.count(x) > 1}
         raise GeneralCityValidationError(f"duplicate junction IDs: {sorted(dupes)}")
 
-    segment_ids = [s.id for s in city.segments]
+    segment_ids = [s.id for s in city.roads]
     if len(segment_ids) != len(set(segment_ids)):
         dupes = {x for x in segment_ids if segment_ids.count(x) > 1}
         raise GeneralCityValidationError(f"duplicate segment IDs: {sorted(dupes)}")
@@ -72,7 +72,7 @@ def _validate_unique_ids(city: GeneralCity) -> None:
         dupes = {x for x in hospital_ids if hospital_ids.count(x) > 1}
         raise GeneralCityValidationError(f"duplicate hospital IDs: {sorted(dupes)}")
 
-    for junction in city.junctions:
+    for junction in city.intersections:
         _validate_unique(junction.id, "approach", [a.id for a in junction.approaches])
         _validate_unique(junction.id, "exit", [e.id for e in junction.exits])
         _validate_unique(junction.id, "movement", [m.id for m in junction.movements])
@@ -88,8 +88,8 @@ def _validate_unique(junction_id: str, kind: str, ids: list[str]) -> None:
 
 
 def _validate_segments_reference_known_junctions(city: GeneralCity) -> None:
-    junction_ids = {j.id for j in city.junctions}
-    for segment in city.segments:
+    junction_ids = {j.id for j in city.intersections}
+    for segment in city.roads:
         if segment.from_node not in junction_ids:
             raise GeneralCityValidationError(
                 f"segment {segment.id} references unknown from_node '{segment.from_node}'"
@@ -101,8 +101,8 @@ def _validate_segments_reference_known_junctions(city: GeneralCity) -> None:
 
 
 def _validate_junction_internal_references(city: GeneralCity) -> None:
-    segment_ids = {s.id for s in city.segments}
-    for junction in city.junctions:
+    segment_ids = {s.id for s in city.roads}
+    for junction in city.intersections:
         approach_ids = {a.id for a in junction.approaches}
         exit_ids = {e.id for e in junction.exits}
         for approach in junction.approaches:
@@ -148,7 +148,7 @@ def _validate_junction_internal_references(city: GeneralCity) -> None:
 
 def _validate_conflict_matrices_symmetric_and_irreflexive(city: GeneralCity) -> None:
     rules = ConflictRules()
-    for junction in city.junctions:
+    for junction in city.intersections:
         matrix = junction.conflict_matrix(rules)
         for a in matrix.movement_ids:
             if matrix.conflicts(a, a):
@@ -164,7 +164,7 @@ def _validate_conflict_matrices_symmetric_and_irreflexive(city: GeneralCity) -> 
 
 def _validate_phases_conflict_free_and_served(city: GeneralCity) -> None:
     rules = ConflictRules()
-    for junction in city.junctions:
+    for junction in city.intersections:
         if not junction.phases:
             continue
         matrix = junction.conflict_matrix(rules)
@@ -185,7 +185,7 @@ def _validate_phases_conflict_free_and_served(city: GeneralCity) -> None:
 
 
 def _validate_hospitals_on_known_nodes(city: GeneralCity) -> None:
-    junction_ids = {j.id for j in city.junctions}
+    junction_ids = {j.id for j in city.intersections}
     for hospital in city.hospitals:
         if hospital.node_id not in junction_ids:
             raise GeneralCityValidationError(
@@ -194,13 +194,13 @@ def _validate_hospitals_on_known_nodes(city: GeneralCity) -> None:
 
 
 def _validate_strongly_connected(city: GeneralCity) -> None:
-    junction_ids = {j.id for j in city.junctions}
+    junction_ids = {j.id for j in city.intersections}
     if not junction_ids:
         raise GeneralCityValidationError("city has no junctions")
 
     forward: dict[str, list[str]] = {j: [] for j in junction_ids}
     backward: dict[str, list[str]] = {j: [] for j in junction_ids}
-    for segment in city.segments:
+    for segment in city.roads:
         forward[segment.from_node].append(segment.to_node)
         backward[segment.to_node].append(segment.from_node)
 
@@ -235,7 +235,7 @@ def _bfs(start: str, adjacency: dict[str, list[str]]) -> set[str]:
 
 
 def _validate_timings_against_settings(city: GeneralCity, settings: Settings) -> None:
-    for junction in city.junctions:
+    for junction in city.intersections:
         for phase in junction.phases:
             if phase.min_green_ms < settings.min_green_ms:
                 raise GeneralCityValidationError(
@@ -255,7 +255,7 @@ def _validate_timings_against_settings(city: GeneralCity, settings: Settings) ->
 
 
 def _validate_ambulance_entry_known(city: GeneralCity) -> None:
-    junction_ids = {j.id for j in city.junctions}
+    junction_ids = {j.id for j in city.intersections}
     if city.ambulance_entry_node not in junction_ids:
         raise GeneralCityValidationError(
             f"ambulance_entry_node '{city.ambulance_entry_node}' is not a known junction"

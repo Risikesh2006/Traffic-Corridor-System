@@ -203,8 +203,8 @@ def main() -> None:
     hospitals = build_hospitals()
 
     city = GeneralCity(
-        junctions=tuple(junctions),
-        segments=tuple(segments),
+        intersections=tuple(junctions),
+        roads=tuple(segments),
         hospitals=tuple(hospitals),
         ambulance_entry_node="A6",
     )
@@ -218,8 +218,8 @@ def main() -> None:
     load_general_city(out_path, settings)
 
     print(
-        f"Wrote {out_path} with {len(city.junctions)} junctions, "
-        f"{len(city.segments)} directed road segments, {len(city.hospitals)} hospitals."
+        f"Wrote {out_path} with {len(city.intersections)} junctions, "
+        f"{len(city.roads)} directed road segments, {len(city.hospitals)} hospitals."
     )
 
 

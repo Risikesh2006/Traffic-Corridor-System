@@ -5,6 +5,17 @@ expand-migrate-contract refactor (ADR-047). A `GeneralCity` is built from
 `Junction`s (core.junctions) rather than intersections with compass
 approaches, and its road segments carry geometry, road class, one-way and
 name, so the same container can later hold a real OpenStreetMap city.
+
+Field and method names deliberately match `core.models.City`
+(`intersections`, `roads`, `.intersection()`, `.segment()`, `.outgoing()`,
+`.incoming()`, `.neighbors()`, `.distance_m()`) even though the per-object
+shape is different (`Junction` instead of `Intersection`). This is not
+aliasing for its own sake: every consumer that only navigates the graph
+(looks up a node or a road, follows an edge) needs no change at all when
+switching from one city type to the other, and ADR-051 found that nearly
+every backend module does exactly that. Only code that reaches into
+direction-specific detail (`.approaches`, `.phases`, `.conflict_matrix`)
+needs to change, because that detail is genuinely different.
 """
 
 from __future__ import annotations
@@ -35,25 +46,32 @@ class GeneralRoadSegment(BaseModel):
 class GeneralCity(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    junctions: tuple[Junction, ...]
-    segments: tuple[GeneralRoadSegment, ...]
+    intersections: tuple[Junction, ...]
+    roads: tuple[GeneralRoadSegment, ...]
     hospitals: tuple[Hospital, ...]
     ambulance_entry_node: str
 
-    def junction(self, junction_id: str) -> Junction:
-        for node in self.junctions:
-            if node.id == junction_id:
+    def intersection(self, node_id: str) -> Junction:
+        for node in self.intersections:
+            if node.id == node_id:
                 return node
-        raise KeyError(f"unknown junction: {junction_id}")
+        raise KeyError(f"unknown intersection: {node_id}")
 
     def segment(self, segment_id: str) -> GeneralRoadSegment:
-        for road in self.segments:
+        for road in self.roads:
             if road.id == segment_id:
                 return road
         raise KeyError(f"unknown road segment: {segment_id}")
 
-    def outgoing(self, junction_id: str) -> list[GeneralRoadSegment]:
-        return [r for r in self.segments if r.from_node == junction_id]
+    def outgoing(self, node_id: str) -> list[GeneralRoadSegment]:
+        return [r for r in self.roads if r.from_node == node_id]
 
-    def incoming(self, junction_id: str) -> list[GeneralRoadSegment]:
-        return [r for r in self.segments if r.to_node == junction_id]
+    def incoming(self, node_id: str) -> list[GeneralRoadSegment]:
+        return [r for r in self.roads if r.to_node == node_id]
+
+    def neighbors(self, node_id: str) -> list[str]:
+        return [r.to_node for r in self.outgoing(node_id)]
+
+    def distance_m(self, a: str, b: str) -> float:
+        node_a, node_b = self.intersection(a), self.intersection(b)
+        return float(((node_a.x - node_b.x) ** 2 + (node_a.y - node_b.y) ** 2) ** 0.5)

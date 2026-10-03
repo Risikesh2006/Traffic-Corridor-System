@@ -1,5 +1,5 @@
 {
-  "junctions": [
+  "intersections": [
     {
       "id": "A1",
       "kind": "SIGNALISED",
@@ -5953,7 +5953,7 @@
       ]
     }
   ],
-  "segments": [
+  "roads": [
     {
       "id": "A1->A2",
       "from_node": "A1",
