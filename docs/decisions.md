@@ -531,3 +531,223 @@ concretely: disabling the controller's own approval check or idempotency
 store, or corrupting its timing data, still gets caught, because the
 checker never asked the controller whether it did the right thing — it
 measured.
+
+---
+
+## ADR-020: In-process event bus with no persistence yet
+
+**Context.** Central components announce observations (GPS fixes, passages,
+deviations) without knowing who listens. Phase 8 adds an event store that must
+see everything without changing publishers.
+
+**Decision.** `events/bus.py` is a synchronous publish/subscribe bus. Delivery is
+FIFO in subscription order, IDs are deterministic, and a derived event inherits
+its cause's correlation ID. There is no persistence or replay yet; the store
+will be another subscriber.
+
+**Consequences.** Publishers do not change when the store arrives. A slow
+subscriber slows the publisher, which is acceptable for the single-process
+deployment (PRD §8.1).
+
+---
+
+## ADR-021: The composition root is the only place sim and central code meet
+
+**Context.** ADR-005 forbids central code from importing the simulator, yet
+something must connect them.
+
+**Decision.** `runtime/composition.py` is the only module that imports both. It
+builds the simulation and the central system and passes the simulator's feeds
+into central through the `core/interfaces.py` protocols. It owns the cadence:
+the simulator steps every tick, central steps on the corridor cadence. Only
+`api/` and `scripts/` may import `runtime/`; `test_boundary.py` enforces this.
+
+**Consequences.** Replacing the simulator with real feeds means writing new
+adapters in one place, and central code can be tested with fakes that implement
+the protocols.
+
+---
+
+## ADR-022: Controllers report state up-link over the same lossy network
+
+**Context.** Central code needs each intersection's signal state, current phase,
+red-since time, applied plan version and active hold to validate commands and
+predict arrivals. A report can be delayed, dropped or duplicated.
+
+**Decision.** Each controller sends a `StatusReport` on the heartbeat interval
+over an up-link in `SimNetwork`, subject to the same latency, drop and duplicate
+faults as the down-link. Central code treats a missing or stale report as
+unknown, never as "all clear". Unknown signal state counts as red for stopping
+decisions.
+
+**Consequences.** Staleness is visible and handled. The up-link reuses the
+existing fault model, so the chaos tests cover it.
+
+---
+
+## ADR-023: Ingestion ordering, deduplication and clock-skew policy
+
+**Context.** Every input must be validated and deduplicated before anything
+downstream sees it, with bounded memory.
+
+**Decision.** Per (kind, source), the gateway keeps the last accepted sequence:
+equal is a duplicate, lower is out of order. Memory is bounded by the number of
+sources, not messages. A source clock more than `clock_skew_tolerance_s` ahead
+of receipt is clamped to the receive time and flagged, not rejected, because
+device clocks drift. GPS fixes are rejected when the implied speed exceeds
+`max_gps_speed_mps`, or when the raw jump exceeds `max_gps_jump_m` (this also
+catches equal timestamps, where a speed ratio is undefined). Sensor sequences
+are keyed per metric, because density and queue count are separate streams.
+
+**Consequences.** Ingestion costs about 0.02 ms p95 against a 50 ms budget. The
+per-metric key was a real bug: before the fix, 2,616 valid queue readings were
+rejected as duplicates of density readings.
+
+---
+
+## ADR-024: Historical priors generated from the simulator
+
+**Context.** No real history exists. A segment with no live data needs a prior,
+and a prior of zero would mean "empty road", which is the unsafe answer.
+
+**Decision.** `scripts/build_history.py` runs one simulated day for each of 5
+seeds, samples each segment every 60 s, and stores the median and interquartile
+range per 15-minute bucket (120 segments × 96 buckets). Seeds run in parallel
+and are merged in seed order, so the output is reproducible. The result is
+committed as `data/historical_profile.json`. Lookups interpolate between buckets
+and wrap at midnight.
+
+**Consequences.** The prior matches the simulator's demand model, which is the
+only stand-in available. It is only as good as that model: the evaluation runs
+at peak demand (×2.5) but the prior was built at normal demand, so stale-segment
+density is badly underestimated (p50 5 veh/km/lane against a true value that is
+much higher). This is reported, not hidden, and is the next thing to fix by
+building the profile at peak.
+
+---
+
+## ADR-025: Alpha-beta filter on along-route state
+
+**Context.** The tracker needs smooth position and speed from noisy, intermittent
+GPS on a route that is effectively one-dimensional.
+
+**Decision.** An alpha-beta filter (α = 0.6, β = 0.2) over distance along the
+route and speed. An EWMA of observed speed (α = 0.3) feeds the uncertainty
+estimate only. A Kalman filter would model two-dimensional covariance that the
+along-route state does not need. Two gains are easy to explain and to test.
+
+**Consequences.** Simple and explainable. A lateral or non-Gaussian model would
+justify moving to a Kalman filter later.
+
+---
+
+## ADR-026: Scored map matching with a grid index
+
+**Context.** A fix must be assigned to a segment. Opposite carriageways are
+geometrically identical, so distance alone cannot separate them.
+
+**Decision.** Candidates come from a 100 m grid index within the match radius.
+Each is scored: distance over radius, plus 0.5 × heading penalty, minus 0.3 if on
+the route, minus 0.2 for continuity with the previous match. The lowest score
+wins.
+
+**Consequences.** Cheap and tested (heading separates carriageways; route and
+continuity bonuses hold the match through noise). An HMM with transition
+probabilities is the robust alternative for denser networks.
+
+---
+
+## ADR-027: Two ETA definitions and the window formula
+
+**Context.** Corridor planning needs the earliest possible arrival, and
+hospitals need the realistic one. Using the current speed for the first is wrong:
+a stopped ambulance would predict an arrival that never comes.
+
+**Decision.**
+- **Unimpeded**: arrival at the stop line at cruise speed (free-flow × ambulance
+  speed factor), ignoring signals and queues. It is a lower bound on arrival.
+- **Expected**: departure through the stop line, equal to
+  `max(unimpeded arrival, next green + projected red wait) + queue wait`. The
+  red wait is projected from the controller's reported phase through its
+  default plan timings; unknown state falls back to `eta_expected_red_fraction`
+  of the cycle.
+- **Window** (half-width): `eta_base_window_s` + `eta_k_gps` × GPS age +
+  `eta_k_speed` × speed std × travel time + `eta_k_stale` × stale fraction ×
+  expected + `eta_k_wait` × red wait. It always contains the unimpeded ETA.
+
+Two bugs shaped this. The first version measured the red wait from now and then
+added it to a future arrival, double-counting the gap. Evaluation first scored
+expected ETA against arrival at the line, when it should score departure.
+
+**Consequences.** Measured on the 10-minute run: the expected ETA at 30 s has
+median signed error +2.4 s. At 60 s the window contains the departure only 62.5%
+of the time, with median bias −21 s. The likely cause is pedestrian service
+extensions, which lengthen greens but are absent from the projected plan. This
+is open; `eta_k_wait` partly compensates and is not fully tuned.
+
+---
+
+## ADR-028: Dead reckoning holds at a red stop line and reconciles on GPS return
+
+**Context.** With GPS lost the tracker must still estimate position, and a
+vehicle coasting through a red light would be wrong exactly where it matters.
+
+**Decision.** After `gps_loss_threshold_s` (3 s) without a fix, the estimate
+advances at the last filtered speed. If it reaches a stop line whose approach is
+not green (unknown counts as red), it holds there at zero speed. On GPS return, a
+fix consistent with the coasted estimate is blended in; an inconsistent but
+plausible fix resets the filter.
+
+**Consequences.** Median dead-reckoning error is 0.00 m on the 10-minute run. The
+p95 of 77 m comes from a light turning green during the outage, which the
+tracker cannot observe until GPS returns. This is the stated limit.
+
+---
+
+## ADR-029: Deviation requires persistence
+
+**Context.** FR-TRK-05 requires a deviation event, but one noisy fix must not
+trigger a replan.
+
+**Decision.** A deviation is raised after `deviation_fix_count` (3) consecutive
+off-route fixes (farther than `deviation_distance_m` from the route, or
+unmatched), or after `deviation_duration_s` (5 s) off route. It is raised once
+per route.
+
+**Consequences.** A real detour is reported within a few fixes, which is what
+Phase 7 replanning needs. The clean evaluation run raised no false deviations.
+
+---
+
+## ADR-030: Stop-line passage margin of 15 m; presence means "at the line"
+
+**Context.** Phase 6 releases a preemption lease on passage. Releasing it while
+the ambulance is still at the line hands the intersection back too early. GPS
+noise is σ = 5 m.
+
+**Decision.** Passage is reported only when the estimate is at least
+`stop_line_margin_m` (15 m, three σ) beyond the line. A presence detector firing
+means the vehicle has reached the line: it snaps the estimate to the line and
+holds. It never counts as passage.
+
+**Consequences.** A stopped vehicle under 5 m noise never triggers a false
+passage (regression test). Passage is reported about 2 s after true departure
+(p50 +2.0 s, p95 +2.1 s): the safe direction. Two earlier versions failed. A
+5 m margin let noise trigger passage, and presence-as-passage released leases
+while the vehicle was still stopped.
+
+---
+
+## ADR-031: Unknown is never treated as clear
+
+**Context.** Signal state, queues, densities and priors can all be missing.
+Defaulting any of them to clear makes the system optimistic exactly when it
+should be cautious.
+
+**Decision.** Unknown signal state is red for stopping. A segment with no live
+data uses its historical prior, inflated by the pessimism factor, and is marked
+stale. An intersection with no fresh report is treated as unknown, not as
+normal. A zero prior is only ever the no-profile test condition.
+
+**Consequences.** The system errs toward delay and assumed congestion. This costs
+time, never safety, consistent with ADR-016.

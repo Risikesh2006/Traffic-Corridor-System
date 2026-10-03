@@ -143,4 +143,17 @@ docs/
 docker-compose.yml
 ```
 
-## Current phase: Phase 3 complete
+## Current phase: Phase 4 complete
+
+Phase 4 adds the perception layer: `ingestion/` (validation, deduplication,
+ordering, clock skew), `state/` (world state and historical priors), `tracking/`
+(filter, map matching, ETA, dead reckoning), `central/` (the orchestrator), and
+`runtime/` (the composition root, the only module that imports both `sim/` and
+central code; only `api/` and `scripts/` may import it).
+
+Historical priors and the tracking evaluation:
+
+```bash
+python -m backend.scripts.build_history
+python -m backend.scripts.tracking_report --seed 4417 --minutes 10 --gps-loss 60:20 --stale-sensors B:120:90
+```

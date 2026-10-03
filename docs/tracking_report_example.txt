@@ -1,0 +1,28 @@
+$ python -m backend.scripts.tracking_report --seed 4417 --minutes 10 --gps-loss 60:20 --stale-sensors B:120:90
+
+=== Position error (tracked vs true, metres) ===
+  with GPS:          p50=2.23m p95=8.92m (n=337)
+  dead reckoning:    p50=0.00m p95=77.30m (n=17)
+
+=== ETA error vs true arrival (seconds) ===
+  30s horizon  expected:  abs p50=14.08s p95=30.45s (n=16)  median signed +2.4s
+  30s horizon  unimpeded: abs p50=7.72s p95=15.15s (n=16)  median signed -7.7s
+  30s horizon  arrival inside [eta_low, eta_high]: 100.0%
+  60s horizon  expected:  abs p50=22.54s p95=37.58s (n=16)  median signed -21.0s
+  60s horizon  unimpeded: abs p50=16.85s p95=28.84s (n=16)  median signed -16.8s
+  60s horizon  arrival inside [eta_low, eta_high]: 62.5%
+
+=== Density estimate error (veh/km/lane) ===
+  fresh segments:  p50=0.68 p95=3.76 (n=41110)
+  stale segments:  p50=5.00 p95=18.00 (n=1370)
+
+=== Gateway counters (per source) ===
+  accepted: 50152
+
+=== Tracking events ===
+  route deviation events: 0 (true route: 0 expected)
+  stop-line passage timing error (s): p50=2.00s p95=2.10s (n=9)
+
+=== Latency ===
+  ingestion per input (ms): p50=0.01ms p95=0.02ms (n=50152)
+  central step per tick (ms): p50=0.37ms p95=4.05ms (n=600)
