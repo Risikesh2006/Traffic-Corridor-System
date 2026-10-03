@@ -1,12 +1,11 @@
 import math
 from pathlib import Path
 
-from core.city_loader import load_city
 from core.clock import SimClock
 from core.config import Settings, load_settings
+from core.general_city_loader import load_general_city
 from core.models import (
     ControllerStatus,
-    Direction,
     EstimateSource,
     SensorMetric,
     SensorReading,
@@ -16,6 +15,7 @@ from core.models import (
 from state.world_state import WorldState
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SEG = "A2->B2"  # feeds B2's W approach
 
 
@@ -26,7 +26,7 @@ def _settings(**overrides) -> Settings:
 
 def _world(settings: Settings | None = None) -> tuple[WorldState, SimClock]:
     settings = settings or _settings()
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     clock = SimClock()
     return WorldState(city, settings, clock), clock
 
@@ -100,7 +100,7 @@ def test_queue_estimate_uses_queue_metric_for_correct_approach():
     world.apply_sensor(
         _reading(12.0, ts=0, road=SEG, metric=SensorMetric.QUEUE_COUNT), received_at=0
     )
-    est = world.queue_estimate("B2", Direction.W, now=0)
+    est = world.queue_estimate("B2", "B2-W-in", now=0)
     assert est is not None
     assert est.value == 12.0
     assert est.source == EstimateSource.LIVE
@@ -109,7 +109,7 @@ def test_queue_estimate_uses_queue_metric_for_correct_approach():
 def test_queue_estimate_none_for_unknown_approach():
     world, clock = _world()
     # A1 is a corner: it has no W approach at all.
-    assert world.queue_estimate("A1", Direction.W, now=0) is None
+    assert world.queue_estimate("A1", "A1-W-in", now=0) is None
 
 
 def _status(seq=1, status=ControllerStatus.ONLINE, sent_at=0) -> StatusReport:
@@ -119,9 +119,9 @@ def _status(seq=1, status=ControllerStatus.ONLINE, sent_at=0) -> StatusReport:
         sent_at=sent_at,
         controller_status=status,
         signal_state=SignalState.GREEN,
-        current_phase_id="NS_THROUGH",
+        current_phase_id="B2-P3",
         state_started_at=0,
-        red_since={Direction.E: 0},
+        red_since={"B2-E-in": 0},
         applied_plan_version=0,
     )
 
@@ -162,7 +162,7 @@ def test_supervisor_view_populated_from_world_state():
     assert sup.intersection_id == "B2"
     assert sup.controller_status == ControllerStatus.ONLINE
     assert sup.reported_at == 500  # the moment the report was received
-    assert sup.red_since == {Direction.E: 0}
+    assert sup.red_since == {"B2-E-in": 0}
 
 
 def test_close_and_reopen_road():

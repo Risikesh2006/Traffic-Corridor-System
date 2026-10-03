@@ -9,32 +9,34 @@ from pathlib import Path
 
 import pytest
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.clock import SimClock
 from core.config import load_settings
 from core.models import Command, CommandType, ControllerStatus
 from safety.supervisor import IntersectionView, SafetySupervisor
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
-def _view(intersection_id: str, reported_at: int) -> IntersectionView:
+def _view(intersection_id: str, reported_at: int, phase_id: str) -> IntersectionView:
     return IntersectionView(
         intersection_id=intersection_id,
         controller_status=ControllerStatus.ONLINE,
         reported_at=reported_at,
-        current_phase_id="NS_THROUGH",
-        red_since={"E": 0, "W": 0},
+        current_phase_id=phase_id,
+        red_since={},
     )
 
 
 @pytest.mark.slow
 def test_validate_p95_under_5ms() -> None:
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     clock = SimClock()
     supervisor = SafetySupervisor(city, settings, clock, secret="perf-test-secret")
     node_ids = [n.id for n in city.intersections]
+    first_phase_id = {n.id: n.phases[0].id for n in city.intersections}
 
     n = 5000
     durations_ms: list[float] = []
@@ -46,12 +48,12 @@ def test_validate_p95_under_5ms() -> None:
             intersection_id=node_id,
             plan_version=i,
             idempotency_key=f"v{i}:{node_id}:{i % 10000:04d}",
-            payload={"phase_id": "EW_THROUGH", "hold_until": i * 10 + 20_000},
+            payload={"phase_id": first_phase_id[node_id], "hold_until": i * 10 + 20_000},
             created_at=i * 10,
         )
         clock.advance(10)
         start = time.perf_counter()
-        supervisor.validate(cmd, _view(node_id, reported_at=clock.now()))
+        supervisor.validate(cmd, _view(node_id, reported_at=clock.now(), phase_id=first_phase_id[node_id]))
         durations_ms.append((time.perf_counter() - start) * 1000)
 
     durations_ms.sort()

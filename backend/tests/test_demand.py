@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.clock import SimClock
 from core.config import Settings, load_settings
 from core.rng import RngFactory
@@ -9,6 +9,7 @@ from sim.demand import DemandModel, build_sources
 from sim.traffic import TrafficModel
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings(**overrides) -> Settings:
@@ -17,7 +18,7 @@ def _settings(**overrides) -> Settings:
 
 
 def _city():
-    return load_city(CONFIG_DIR / "city.json", _settings())
+    return load_general_city(GRID_PATH, _settings())
 
 
 def _build(settings: Settings, seed: int = 4417, start_wall_label: str = "08:00:00"):

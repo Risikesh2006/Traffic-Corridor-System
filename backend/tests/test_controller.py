@@ -7,11 +7,13 @@ from hypothesis import strategies as st
 from controller.intersection_controller import IntersectionController
 from controller.messages import Ping
 from controller.state_machine import IntersectionStateMachine, detect_conflict
-from core.city_loader import load_city
 from core.config import load_settings
-from core.models import ConflictMatrix, Direction, SignalState
+from core.conflicts import ConflictRules
+from core.general_city_loader import load_general_city
+from core.models import SignalState
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings():
@@ -19,23 +21,24 @@ def _settings():
 
 
 def _city():
-    return load_city(CONFIG_DIR / "city.json", _settings())
+    return load_general_city(GRID_PATH, _settings())
 
 
 def _b2_intersection():
-    return _city().intersection("B2")  # interior, 4 approaches, 2 phases
+    return _city().intersection("B2")  # interior, regular 4-way, PAIRED phasing
 
 
 def test_starts_green_on_first_cycle_phase():
-    sm = IntersectionStateMachine(_b2_intersection())
+    node = _b2_intersection()
+    sm = IntersectionStateMachine(node)
     assert sm.state == SignalState.GREEN
-    assert sm.current_phase_id == "NS_THROUGH"
+    assert sm.current_phase_id == node.phases[0].id
 
 
 def test_never_skips_amber_or_all_red():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
-    ns = sm.phase("NS_THROUGH")
+    first_phase = node.phases[0]
     t = 0
     # Advance in small steps through a full cycle; collect the sequence of states.
     seen = [sm.state]
@@ -54,16 +57,17 @@ def test_never_skips_amber_or_all_red():
             (SignalState.AMBER, SignalState.ALL_RED),
             (SignalState.ALL_RED, SignalState.GREEN),
         }
-    assert ns.min_green_ms > 0  # sanity the phase data loaded
+    assert first_phase.min_green_ms > 0  # sanity the phase data loaded
 
 
 def test_min_green_never_shortened():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
     phase = sm.current_phase()
+    other_phase_id = next(p.id for p in node.phases if p.id != sm.current_phase_id)
     # Even with a competing request arriving immediately, GREEN must hold
-    # for the full min_green_ms before AMBER is allowed to start.
-    sm.request_phase_change("EW_THROUGH", 0)
+    # for the full min_green_ms (the safety floor) before AMBER starts.
+    sm.request_phase_change(other_phase_id, 0)
     sm.tick(phase.min_green_ms - 1)
     assert sm.state == SignalState.GREEN
     sm.tick(phase.min_green_ms)
@@ -74,10 +78,7 @@ def test_amber_and_all_red_durations_exact():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
     phase = sm.current_phase()
-    configured_green_ms = next(
-        e.green_ms for e in node.default_plan if e.phase_id == sm.current_phase_id
-    )
-    now = configured_green_ms
+    now = phase.configured_green_ms
     sm.tick(now)
     assert sm.state == SignalState.AMBER
     amber_entered_at = sm.state_started_at
@@ -97,7 +98,7 @@ def test_amber_and_all_red_durations_exact():
 def test_normal_plan_cycles_in_order_with_correct_splits():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
-    expected_order = [e.phase_id for e in node.default_plan]
+    expected_order = [p.id for p in node.phases]  # the phases' own order is the cycle order
     seen_phases = [sm.current_phase_id]
     t = 0
     for _ in range(100_000):
@@ -150,16 +151,13 @@ def test_request_phase_change_unknown_phase_rejected():
 def test_requesting_the_already_current_phase_holds_it_past_configured_green():
     """A hold is 'requesting to stay' — without this, a preemption that
     lands on an already-green phase would silently expire at that phase's
-    normal configured green_ms instead of actually holding it."""
+    normal configured green share instead of actually holding it."""
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
     phase = sm.current_phase()
-    configured_green_ms = next(
-        e.green_ms for e in node.default_plan if e.phase_id == sm.current_phase_id
-    )
     sm.request_phase_change(sm.current_phase_id, now=0)
 
-    t = configured_green_ms + 5000  # well past the phase's normal green share
+    t = phase.configured_green_ms + 5000  # well past the phase's normal green share
     sm.tick(t)
     assert sm.state == SignalState.GREEN
     assert sm.current_phase_id == phase.id
@@ -168,14 +166,13 @@ def test_requesting_the_already_current_phase_holds_it_past_configured_green():
 def test_clear_pending_request_resumes_normal_cycling():
     node = _b2_intersection()
     sm = IntersectionStateMachine(node)
-    held_phase_id = sm.current_phase_id
-    configured_green_ms = next(e.green_ms for e in node.default_plan if e.phase_id == held_phase_id)
-    sm.request_phase_change(held_phase_id, now=0)
-    sm.tick(configured_green_ms + 5000)
+    held_phase = sm.current_phase()
+    sm.request_phase_change(held_phase.id, now=0)
+    sm.tick(held_phase.configured_green_ms + 5000)
     assert sm.state == SignalState.GREEN  # still held
 
     sm.clear_pending_request()
-    t = configured_green_ms + 5000
+    t = held_phase.configured_green_ms + 5000
     for _ in range(200):
         t += 100
         sm.tick(t)
@@ -185,17 +182,20 @@ def test_clear_pending_request_resumes_normal_cycling():
 
 
 def test_conflicting_greens_trigger_flashing_red():
-    movements = [Direction.N, Direction.S, Direction.E, Direction.W]
-    matrix = ConflictMatrix(
-        movements=movements,
-        conflict_pairs=[(Direction.N, Direction.E), (Direction.E, Direction.N)],
+    node = _b2_intersection()
+    matrix = node.conflict_matrix(ConflictRules())
+    crossing = next(
+        (a, b)
+        for a in matrix.movement_ids
+        for b in matrix.movement_ids
+        if matrix.conflicts(a, b)
     )
-    reason = detect_conflict(matrix, {Direction.N, Direction.E})
+    reason = detect_conflict(matrix, set(crossing))
     assert reason is not None
-    assert "N" in reason and "E" in reason
+    assert crossing[0] in reason and crossing[1] in reason
 
-    reason_ok = detect_conflict(matrix, {Direction.N, Direction.S})
-    assert reason_ok is None
+    same_movement_ok = detect_conflict(matrix, {crossing[0]})
+    assert same_movement_ok is None
 
 
 def test_enter_flashing_is_terminal_for_this_phase():
@@ -209,11 +209,11 @@ def test_enter_flashing_is_terminal_for_this_phase():
     assert sm.state == SignalState.FLASHING_RED
 
 
-def test_signal_view_all_red_during_flashing():
+def test_movement_view_all_red_during_flashing():
     node = _b2_intersection()
     controller = IntersectionController(node)
     controller.state_machine.enter_flashing("test", 0)
-    view = controller.signal_view()
+    view = controller.movement_view()
     assert all(s == SignalState.FLASHING_RED for s in view.values())
 
 
@@ -240,7 +240,7 @@ def test_unsupported_message_type():
 def test_signal_changed_events_emitted():
     node = _b2_intersection()
     controller = IntersectionController(node)
-    configured_green_ms = node.default_plan[0].green_ms
+    configured_green_ms = node.phases[0].configured_green_ms
     controller.tick(configured_green_ms)  # -> AMBER
     events = controller.drain_events()
     assert len(events) == 1
@@ -260,7 +260,7 @@ def test_signal_changed_events_emitted():
     ops=st.lists(
         st.one_of(
             st.tuples(st.just("tick"), st.integers(min_value=1, max_value=5000)),
-            st.tuples(st.just("request"), st.sampled_from(["NS_THROUGH", "EW_THROUGH"])),
+            st.tuples(st.just("request"), st.integers(min_value=0, max_value=5)),
         ),
         min_size=1,
         max_size=200,
@@ -268,6 +268,7 @@ def test_signal_changed_events_emitted():
 )
 def test_invariants_hold_under_random_operations(ops: list[tuple]):
     node = _b2_intersection()
+    phase_ids = [p.id for p in node.phases]
     sm = IntersectionStateMachine(node)
     phase_last_entered_green_at: dict[str, int] = {sm.current_phase_id: 0}
     now = 0
@@ -282,14 +283,15 @@ def test_invariants_hold_under_random_operations(ops: list[tuple]):
                     phase_last_entered_green_at[t.phase_id] = t.at
                 if t.from_state == SignalState.GREEN and t.to_state == SignalState.AMBER:
                     # INV-04: the phase that just left GREEN must have held
-                    # it for at least its min_green_ms.
+                    # it for at least its min_green_ms (the safety floor).
                     entered_at = phase_last_entered_green_at.get(before_phase)
                     if entered_at is not None and before_phase is not None:
                         held_for = t.at - entered_at
                         assert held_for >= sm.phase(before_phase).min_green_ms
         else:
-            sm.request_phase_change(value, now)
+            sm.request_phase_change(phase_ids[value % len(phase_ids)], now)
 
     # INV-01: never two conflicting movements green/amber at once.
     active = sm.green_movements() | sm.amber_movements()
-    assert detect_conflict(node.conflict_matrix, active) is None
+    matrix = node.conflict_matrix(ConflictRules())
+    assert detect_conflict(matrix, active) is None

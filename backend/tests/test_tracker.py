@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import Settings, load_settings
 from core.events import EventType
 from core.models import GpsFix, PositionSource, Priority
@@ -12,6 +12,7 @@ from tracking.map_match import MapMatcher
 from tracking.tracker import VehicleTracker
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 ROUTE = ["A2", "B2", "C2", "D2"]  # eastbound straight line, 300m segments
 VEH = "AMB-1"
 
@@ -37,7 +38,7 @@ class _World:
 
 def _tracker(settings: Settings | None = None, bus: EventBus | None = None):
     settings = settings or _settings()
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     matcher = MapMatcher(city, radius_m=settings.map_match_radius_m)
     world = _World()
     tracker = VehicleTracker(
@@ -208,7 +209,7 @@ def test_stop_line_not_passed_under_noise_before_reaching_it():
 
 
 def test_presence_places_vehicle_at_stop_line_without_claiming_passage():
-    from core.models import Direction, PresenceReading
+    from core.models import PresenceReading
 
     bus = EventBus()
     tracker, city, settings = _tracker(bus=bus)
@@ -218,7 +219,7 @@ def test_presence_places_vehicle_at_stop_line_without_claiming_passage():
         PresenceReading(
             source_id="det-B2",
             intersection_id="B2",
-            approach_direction=Direction.W,
+            approach_id="B2-W-in",
             vehicle_id=VEH,
             timestamp=12_000,
             sequence=1,

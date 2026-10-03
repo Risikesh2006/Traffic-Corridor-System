@@ -6,13 +6,13 @@ from hypothesis import settings as hyp_settings
 from hypothesis import strategies as st
 
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
 from core.config import Settings, load_settings
-from core.models import SignalPlanEntry
+from core.general_city_loader import load_general_city
 from core.rng import RngFactory
 from sim.traffic import TrafficModel
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings(**overrides) -> Settings:
@@ -21,27 +21,37 @@ def _settings(**overrides) -> Settings:
 
 
 def _city():
-    return load_city(CONFIG_DIR / "city.json", _settings())
+    return load_general_city(GRID_PATH, _settings())
+
+
+def _phase_serving_segment(city, node_id: str, segment_id: str) -> str:
+    """The phase id that serves the approach `segment_id` feeds at `node_id`."""
+    node = city.intersection(node_id)
+    approach = next(a for a in node.approaches if a.segment_id == segment_id)
+    approach_of = {m.id: m.approach_id for m in node.movements}
+    for phase in node.phases:
+        if any(approach_of.get(mid) == approach.id for mid in phase.movement_ids):
+            return phase.id
+    raise AssertionError(f"no phase at {node_id} serves segment {segment_id}")
 
 
 def _held_green_city(phase_id: str, held_node_id: str = "D4", green_s: float = 100_000):
     """Returns a city where `held_node_id`'s `phase_id` has an enormous
-    green share, so it stays green for the whole test without the normal
-    cycle rotating it away. Only `held_node_id` is modified."""
+    configured green share, so it stays green for the whole test without the
+    normal cycle rotating it away. Only `held_node_id` is modified."""
     city = _city()
     new_intersections = []
     for node in city.intersections:
         if node.id != held_node_id:
             new_intersections.append(node)
             continue
-        new_plan = [
-            SignalPlanEntry(
-                phase_id=e.phase_id,
-                green_ms=round(green_s * 1000) if e.phase_id == phase_id else e.green_ms,
-            )
-            for e in node.default_plan
-        ]
-        new_intersections.append(node.model_copy(update={"default_plan": new_plan}))
+        new_phases = tuple(
+            p.model_copy(update={"configured_green_ms": round(green_s * 1000)})
+            if p.id == phase_id
+            else p
+            for p in node.phases
+        )
+        new_intersections.append(node.model_copy(update={"phases": new_phases}))
     return city.model_copy(update={"intersections": new_intersections})
 
 
@@ -72,11 +82,13 @@ def _run_until_phase(
 
 
 def test_discharge_rate_converges_to_lanes_over_headway():
-    city = _held_green_city("EW_THROUGH")
+    base_city = _city()
+    segment_id = "C4->D4"  # feeds D4's W approach
+    to_node = "D4"
+    ew_phase = _phase_serving_segment(base_city, to_node, segment_id)
+    city = _held_green_city(ew_phase)
     settings = _settings()
     city, settings, controllers, traffic = _build(city, settings)
-    segment_id = "C4->D4"  # feeds D4's W approach (EW_THROUGH phase)
-    to_node = "D4"
     lanes = city.segment(segment_id).lanes
 
     seg = traffic.segments[segment_id]
@@ -84,7 +96,7 @@ def test_discharge_rate_converges_to_lanes_over_headway():
         seg.queue.append(0)  # seed the queue directly; this test is about discharge, not arrival
 
     dt = 100
-    now = _run_until_phase(controllers, to_node, "EW_THROUGH", dt=dt)
+    now = _run_until_phase(controllers, to_node, ew_phase, dt=dt)
 
     start_discharged = seg.cumulative_discharged
     start_time = now
@@ -102,17 +114,19 @@ def test_discharge_rate_converges_to_lanes_over_headway():
 
 
 def test_startup_loss_applied_at_start_of_green():
-    city = _held_green_city("EW_THROUGH")
-    settings = _settings(startup_loss_s=5)
-    city, settings, controllers, traffic = _build(city, settings)
+    base_city = _city()
     segment_id = "C4->D4"
     to_node = "D4"
+    ew_phase = _phase_serving_segment(base_city, to_node, segment_id)
+    city = _held_green_city(ew_phase)
+    settings = _settings(startup_loss_s=5)
+    city, settings, controllers, traffic = _build(city, settings)
     seg = traffic.segments[segment_id]
     for _ in range(50):
         seg.queue.append(0)
 
     dt = 100
-    green_entered_at = _run_until_phase(controllers, to_node, "EW_THROUGH", dt=dt)
+    green_entered_at = _run_until_phase(controllers, to_node, ew_phase, dt=dt)
 
     now = green_entered_at
     while now < green_entered_at + settings.startup_loss_ms - dt:
@@ -132,9 +146,13 @@ def test_startup_loss_applied_at_start_of_green():
 
 def test_queue_grows_during_red():
     city, settings, controllers, traffic = _build()
-    # A2->B2 feeds B2's W approach (EW_THROUGH); B2 starts on NS_THROUGH, so
-    # EW is red at t=0 and stays red for a full 30s green + amber + all-red.
+    # A2->B2 feeds B2's W approach. B2 starts on its first cycle phase,
+    # which serves only the E approach's far-side turn (10s green + 6s
+    # amber/all-red); the second phase, which serves W too, only starts at
+    # t=16000. Stay well inside that first 16s window, where W is red.
     segment_id = "A2->B2"
+    node_id = "B2"
+    ew_phase = _phase_serving_segment(city, node_id, segment_id)
     seg = traffic.segments[segment_id]
     # Seed the queue directly (travel time to arrive via spawn() would
     # outlast this short red window) — this test is about discharge gating,
@@ -144,26 +162,29 @@ def test_queue_grows_during_red():
 
     now = 0
     dt = 1000
-    for _ in range(20):  # 20s, well inside B2's ~30s NS green (EW still red)
+    for _ in range(14):  # 14s, safely before W's phase begins at t=16000
         now += dt
         _advance_all(controllers, now)
         traffic.discharge(now, dt)
+    assert controllers[node_id].state_machine.current_phase_id != ew_phase
     assert seg.cumulative_discharged == 0
     assert len(seg.queue) == 5
 
 
 def test_queue_shrinks_during_green():
-    city = _held_green_city("EW_THROUGH")
-    settings = _settings()
-    city, settings, controllers, traffic = _build(city, settings)
+    base_city = _city()
     segment_id = "C4->D4"
     to_node = "D4"
+    ew_phase = _phase_serving_segment(base_city, to_node, segment_id)
+    city = _held_green_city(ew_phase)
+    settings = _settings()
+    city, settings, controllers, traffic = _build(city, settings)
     seg = traffic.segments[segment_id]
     for _ in range(10):
         seg.queue.append(0)
 
     dt = 100
-    now = _run_until_phase(controllers, to_node, "EW_THROUGH", dt=dt)
+    now = _run_until_phase(controllers, to_node, ew_phase, dt=dt)
     for _ in range(100):  # several seconds of green
         now += dt
         _advance_all(controllers, now)

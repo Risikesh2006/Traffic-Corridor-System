@@ -19,7 +19,7 @@ from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
 from chaos.invariants import InvariantChecker
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.clock import SimClock
 from core.config import load_settings
 from core.models import Command, CommandType, SignalState
@@ -29,9 +29,26 @@ from safety.supervisor import IntersectionView, SafetySupervisor
 from sim.network import SimNetwork
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SECRET = "stateful-test-secret"
 INTERSECTIONS = ["A1", "B2", "C3", "D4"]
-PHASES = ["NS_THROUGH", "EW_THROUGH", "GHOST_PHASE"]
+
+
+def _phase_ids_by_node() -> dict[str, list[str]]:
+    settings = load_settings(CONFIG_DIR / "settings.yaml")
+    city = load_general_city(GRID_PATH, settings)
+    return {nid: [p.id for p in city.intersection(nid).phases] for nid in INTERSECTIONS}
+
+
+_PHASE_IDS_BY_NODE = _phase_ids_by_node()
+# Any phase id from any of the four junctions, plus a ghost id: a command
+# naming a phase that belongs to a DIFFERENT intersection must still be
+# handled safely (rejected as UNKNOWN_PHASE), so this is deliberately
+# a global pool, not per-intersection.
+PHASES = sorted({pid for ids in _PHASE_IDS_BY_NODE.values() for pid in ids}) + ["GHOST_PHASE"]
+_VALID_PEDESTRIAN_CALLS = st.sampled_from(INTERSECTIONS).flatmap(
+    lambda nid: st.tuples(st.just(nid), st.sampled_from(_PHASE_IDS_BY_NODE[nid]))
+)
 
 
 class CorridorSafetyMachine(RuleBasedStateMachine):
@@ -39,7 +56,7 @@ class CorridorSafetyMachine(RuleBasedStateMachine):
         super().__init__()
         settings = load_settings(CONFIG_DIR / "settings.yaml")
         self.settings = settings
-        self.city = city = load_city(CONFIG_DIR / "city.json", settings)
+        self.city = city = load_general_city(GRID_PATH, settings)
         self.clock = SimClock()
         self.rng = RngFactory(4417)
 
@@ -140,11 +157,9 @@ class CorridorSafetyMachine(RuleBasedStateMachine):
     def heartbeat_supervisor(self) -> None:
         self.supervisor.heartbeat()
 
-    @rule(
-        intersection_id=st.sampled_from(INTERSECTIONS),
-        phase_id=st.sampled_from(["NS_THROUGH", "EW_THROUGH"]),
-    )
-    def pedestrian_call(self, intersection_id: str, phase_id: str) -> None:
+    @rule(call=_VALID_PEDESTRIAN_CALLS)
+    def pedestrian_call(self, call: tuple[str, str]) -> None:
+        intersection_id, phase_id = call
         now = self.clock.now()
         self.controllers[intersection_id].state_machine.register_pedestrian_call(phase_id, now)
 

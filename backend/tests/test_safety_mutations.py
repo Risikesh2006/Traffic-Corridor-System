@@ -20,19 +20,24 @@ from chaos.invariants import InvariantChecker
 from controller import intersection_controller as controller_module
 from controller.intersection_controller import IntersectionController
 from controller.state_machine import IntersectionStateMachine
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import Command, CommandAckStatus, CommandType
 from core.security import sign
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SECRET = "mutation-test-secret"
 
 
 def _city_and_settings():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     return city, settings
+
+
+def _any_phase_id(city) -> str:
+    return city.intersection("B2").phases[0].id
 
 
 def _preempt(now: int, phase_id: str, hold_until: int, key: str, approve: bool = True) -> Command:
@@ -60,7 +65,7 @@ def test_mutation_disabled_approval_check_is_detected(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(controller_module, "verify", lambda command, approval, secret: True)
 
-    forged = _preempt(0, "EW_THROUGH", 20_000, "v1:B2:0001", approve=False)
+    forged = _preempt(0, _any_phase_id(city), 20_000, "v1:B2:0001", approve=False)
     ack = controller.handle_message(forged, now=0)
     assert ack.status == CommandAckStatus.EXECUTED  # the mutation let it through
 
@@ -79,7 +84,7 @@ def test_mutation_disabled_idempotency_store_is_detected(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(IntersectionController, "_remember", lambda self, key, ack: None)
 
-    cmd = _preempt(0, "EW_THROUGH", 20_000, "v1:B2:0001")
+    cmd = _preempt(0, _any_phase_id(city), 20_000, "v1:B2:0001")
     ack1 = controller.handle_message(cmd, now=0)
     ack2 = controller.handle_message(cmd, now=100)
     assert ack1.status == CommandAckStatus.EXECUTED
@@ -121,9 +126,12 @@ def test_mutation_corrupted_amber_timing_is_detected() -> None:
     checker, built from the ORIGINAL correct city, must catch the
     mismatch as too-short amber (INV-02)."""
     city, settings = _city_and_settings()
-    corrupted = city.intersection("B2").model_copy(deep=True)
-    for phase in corrupted.phases:
-        phase.amber_ms = 1  # 1ms amber instead of the configured ~4000ms
+    original = city.intersection("B2")
+    # JunctionPhase is frozen; rebuild each phase with a corrupted amber_ms.
+    corrupted_phases = tuple(
+        p.model_copy(update={"amber_ms": 1}) for p in original.phases
+    )  # 1ms amber instead of the configured ~4000ms
+    corrupted = original.model_copy(update={"phases": corrupted_phases})
 
     controller = IntersectionController(corrupted, hmac_secret=SECRET)
     checker = InvariantChecker(city, settings, {"B2": controller}, hmac_secret=SECRET)

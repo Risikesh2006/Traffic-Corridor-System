@@ -19,7 +19,7 @@ import pytest
 
 from chaos.commander import ChaoticCommander
 from chaos.invariants import InvariantChecker
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import Priority
 from safety.gate import SafeSignalLink
@@ -27,6 +27,7 @@ from safety.supervisor import IntersectionView, SafetySupervisor
 from sim.engine import Simulation
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SECRET = "full-sim-test-secret"
 ROUTE = "A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1".split(",")
 
@@ -42,7 +43,7 @@ def _run_one(seed: int, duration_ms: int) -> InvariantChecker:
             "network_latency_jitter_ms": 50,
         }
     )
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     sim = Simulation(city, settings, seed=seed)
     sim.add_ambulance("AMB-1", ROUTE, Priority.P1)
 
@@ -60,7 +61,7 @@ def _run_one(seed: int, duration_ms: int) -> InvariantChecker:
         )
 
     gate = SafeSignalLink(sim.network, supervisor, view_source, sim.clock)
-    commander = ChaoticCommander(list(sim.controllers), settings, sim.rng, gate)
+    commander = ChaoticCommander(city, list(sim.controllers), settings, sim.rng, gate)
     checker = InvariantChecker(city, settings, sim.controllers, hmac_secret=SECRET)
 
     class _SupervisorHeartbeat:

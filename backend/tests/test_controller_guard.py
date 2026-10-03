@@ -1,19 +1,28 @@
 from pathlib import Path
 
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
 from core.config import load_settings
+from core.general_city_loader import load_general_city
 from core.models import Command, CommandAckStatus, CommandType, SignalState
 from core.security import sign
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SECRET = "test-secret"
 
 
 def _node():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
-    return city.intersection("B2")
+    city = load_general_city(GRID_PATH, settings)
+    return city.intersection("B2")  # interior, regular 4-way, PAIRED phasing
+
+
+def _first_phase_id() -> str:
+    return _node().phases[0].id
+
+
+def _second_phase_id() -> str:
+    return _node().phases[1].id
 
 
 def _controller(max_hold_ms: int = 90_000) -> IntersectionController:
@@ -21,7 +30,7 @@ def _controller(max_hold_ms: int = 90_000) -> IntersectionController:
 
 
 def _preempt(
-    phase_id="EW_THROUGH",
+    phase_id=None,
     hold_until=30_000,
     plan_version=1,
     idempotency_key="v1:B2:0001",
@@ -35,7 +44,7 @@ def _preempt(
         intersection_id="B2",
         plan_version=plan_version,
         idempotency_key=idempotency_key,
-        payload={"phase_id": phase_id, "hold_until": hold_until},
+        payload={"phase_id": phase_id if phase_id is not None else _second_phase_id(), "hold_until": hold_until},
         created_at=created_at,
     )
     if approve:
@@ -98,20 +107,22 @@ def test_unknown_phase_rejected():
 
 def test_deferral_reports_correct_effective_at():
     controller = _controller()
-    # B2 starts on NS_THROUGH; request EW_THROUGH immediately.
-    cmd = _preempt(phase_id="EW_THROUGH", hold_until=200_000)
+    # The controller starts on the first phase; request the second immediately.
+    cmd = _preempt(phase_id=_second_phase_id(), hold_until=200_000)
     ack = controller.handle_message(cmd, now=0)
     assert ack.status == CommandAckStatus.EXECUTED
     sm = controller.state_machine
     phase = sm.current_phase()
-    target = sm.phase("EW_THROUGH")
+    target = sm.phase(_second_phase_id())
     expected = phase.min_green_ms + phase.amber_ms + target.all_red_ms
     assert ack.effective_at == expected
 
 
 def test_hold_expiry_returns_to_normal_plan():
     controller = _controller()
-    cmd = _preempt(phase_id="NS_THROUGH", hold_until=5_000)  # already-current phase, short hold
+    first_id = _first_phase_id()
+    second_id = _second_phase_id()
+    cmd = _preempt(phase_id=first_id, hold_until=5_000)  # already-current phase, short hold
     ack = controller.handle_message(cmd, now=0)
     assert ack.status == CommandAckStatus.EXECUTED
     assert controller.active_hold is not None
@@ -123,34 +134,39 @@ def test_hold_expiry_returns_to_normal_plan():
         if controller.active_hold is None:
             break
     assert controller.active_hold is None
-    # Normal cycling should eventually move on past NS_THROUGH.
+    # Normal cycling should eventually move on past the first phase.
     for _ in range(2000):
         now += 100
         controller.tick(now)
-        if controller.state_machine.current_phase_id == "EW_THROUGH":
+        if controller.state_machine.current_phase_id == second_id:
             break
-    assert controller.state_machine.current_phase_id == "EW_THROUGH"
+    assert controller.state_machine.current_phase_id == second_id
 
 
 def test_local_max_hold_serves_starved_approach():
     controller = _controller(max_hold_ms=3_000)  # small for a fast test
-    # Hold NS_THROUGH (already current) for a long time; EW should starve
-    # and get served despite the hold.
-    cmd = _preempt(phase_id="NS_THROUGH", hold_until=60_000)
+    first_id = _first_phase_id()
+    # Hold the first (already current) phase for a long time; whichever
+    # approach it does NOT serve should starve and get served despite the
+    # hold — which specific phase that is depends on the junction's
+    # geometry, so this checks that SOME other phase is reached, not a
+    # particular one.
+    cmd = _preempt(phase_id=first_id, hold_until=60_000)
     ack = controller.handle_message(cmd, now=0)
     assert ack.status == CommandAckStatus.EXECUTED
 
     now = 0
-    served_ew = False
+    served_other = False
     for _ in range(2000):
         now += 100
         controller.tick(now)
         if (
-            controller.state_machine.current_phase_id == "EW_THROUGH"
+            controller.state_machine.current_phase_id is not None
+            and controller.state_machine.current_phase_id != first_id
             and controller.state_machine.state == SignalState.GREEN
         ):
-            served_ew = True
+            served_other = True
             break
-    assert served_ew, "starved EW approach was never served despite an active hold"
+    assert served_other, "starved approach was never served despite an active hold"
     # The hold should still exist (unless it expired) — it's interrupted, not cancelled.
     assert controller.active_hold is not None

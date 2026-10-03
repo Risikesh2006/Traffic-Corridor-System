@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.clock import SimClock
 from core.config import load_settings
 from core.models import Command, CommandAck, CommandType, ControllerStatus
@@ -25,9 +25,18 @@ class FakeSignalLink:
         return ControllerStatus.ONLINE
 
 
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
+
+
+def _node_phase_id() -> str:
+    settings = load_settings(CONFIG_DIR / "settings.yaml")
+    city = load_general_city(GRID_PATH, settings)
+    return city.intersection("B2").phases[0].id
+
+
 def _setup():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     clock = SimClock()
     supervisor = SafetySupervisor(city, settings, clock, secret="test-secret")
     link = FakeSignalLink()
@@ -37,7 +46,7 @@ def _setup():
             intersection_id=intersection_id,
             controller_status=ControllerStatus.ONLINE,
             reported_at=clock.now(),
-            current_phase_id="NS_THROUGH",
+            current_phase_id=_node_phase_id(),
             red_since={},
         )
 
@@ -52,7 +61,7 @@ def _preempt(idempotency_key="v1:B2:0001") -> Command:
         intersection_id="B2",
         plan_version=1,
         idempotency_key=idempotency_key,
-        payload={"phase_id": "EW_THROUGH", "hold_until": 20_000},
+        payload={"phase_id": _node_phase_id(), "hold_until": 20_000},
         created_at=0,
     )
 

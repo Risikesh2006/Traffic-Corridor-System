@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import Settings, load_settings
 from core.models import Priority
 from core.rng import RngFactory
@@ -12,6 +12,7 @@ from sim.traffic import TrafficModel
 from sim.vehicle_feed import SimVehicleFeed, latlng_to_xy, xy_to_latlng
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings(**overrides) -> Settings:
@@ -21,7 +22,7 @@ def _settings(**overrides) -> Settings:
 
 def _build(settings: Settings | None = None, seed: int = 4417):
     settings = settings or _settings()
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     controllers = {n.id: IntersectionController(n) for n in city.intersections}
     rng = RngFactory(seed)
     traffic = TrafficModel(city, settings, rng, controllers)

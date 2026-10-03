@@ -2,7 +2,7 @@ import json
 import math
 
 from chaos.invariants import InvariantChecker
-from core.models import Direction, Priority
+from core.models import Priority
 from runtime.composition import build_runtime
 
 ROUTE = "A6,B6,B5,C5,C4,D4,D3,E3,E2,F2,F1".split(",")
@@ -65,7 +65,7 @@ def test_same_seed_gives_identical_central_state() -> None:
 def test_queue_estimate_comes_from_live_stop_line_readings() -> None:
     rt, _ = _run(seed=4417, seconds=60)
     now = rt.sim.clock.now()
-    estimate = rt.central.world.queue_estimate("B5", Direction.S, now)
+    estimate = rt.central.world.queue_estimate("B5", "B5-S-in", now)
     assert estimate is not None
     assert estimate.source.value in ("LIVE", "BLENDED")
     assert estimate.value >= 0.0

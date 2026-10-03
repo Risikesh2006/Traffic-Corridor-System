@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import Settings, load_settings
 from core.models import City
 from tracking.eta import StopLineTarget, compute_etas
@@ -15,7 +15,7 @@ ROUTE = ["A2", "B2", "C2"]  # two 300m segments, 40 km/h free flow
 
 def _setup() -> tuple[Settings, City]:
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
     return settings, city
 
 

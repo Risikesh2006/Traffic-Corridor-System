@@ -16,19 +16,27 @@ from hypothesis import strategies as st
 
 from chaos.invariants import InvariantChecker
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import Command, CommandType
 from core.security import sign
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 SECRET = "property-test-secret"
+
+
+def _b2_phase_ids() -> list[str]:
+    settings = load_settings(CONFIG_DIR / "settings.yaml")
+    city = load_general_city(GRID_PATH, settings)
+    return [p.id for p in city.intersection("B2").phases]
+
 
 _tick_op = st.tuples(st.just("tick"), st.integers(min_value=1, max_value=5000))
 _flashing_op = st.tuples(st.just("flashing"))
 _command_op = st.tuples(
     st.just("command"),
-    st.sampled_from(["NS_THROUGH", "EW_THROUGH", "GHOST_PHASE", ""]),
+    st.sampled_from([*_b2_phase_ids(), "GHOST_PHASE", ""]),
     st.integers(min_value=-5000, max_value=120_000),  # hold_until offset from now
     st.integers(min_value=0, max_value=10),  # plan_version
     st.integers(min_value=0, max_value=4),  # idempotency key index — small range forces repeats
@@ -40,7 +48,7 @@ _ops = st.lists(st.one_of(_tick_op, _flashing_op, _command_op), min_size=1, max_
 
 def _build():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     node = city.intersection("B2")
     controller = IntersectionController(
         node, hmac_secret=SECRET, max_hold_ms=settings.max_hold_ms, ped_walk_ms=settings.ped_walk_ms

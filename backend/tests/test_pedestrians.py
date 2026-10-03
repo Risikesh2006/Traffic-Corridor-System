@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from controller.state_machine import IntersectionStateMachine
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import SignalState
 
@@ -10,14 +10,14 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
 def _node():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
     return city.intersection("B2")
 
 
 def test_ped_call_on_current_green_extends_hold():
     node = _node()
     sm = IntersectionStateMachine(node, ped_walk_ms=5000)
-    phase = sm.current_phase()  # NS_THROUGH, green at t=0
+    phase = sm.current_phase()  # the first cycle phase, green at t=0
     sm.register_pedestrian_call(sm.current_phase_id, now=1000)
     assert sm.ped_service_end_at == 1000 + 5000 + phase.ped_clearance_ms
 

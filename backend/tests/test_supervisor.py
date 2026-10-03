@@ -1,13 +1,14 @@
 from pathlib import Path
 
-from core.city_loader import load_city
 from core.clock import SimClock
 from core.config import Settings, load_settings
+from core.general_city_loader import load_general_city
 from core.models import Command, CommandType, ControllerStatus
 from core.security import verify
 from safety.supervisor import IntersectionView, SafetySupervisor
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings(**overrides) -> Settings:
@@ -16,7 +17,25 @@ def _settings(**overrides) -> Settings:
 
 
 def _city(settings: Settings):
-    return load_city(CONFIG_DIR / "city.json", settings)
+    return load_general_city(GRID_PATH, settings)
+
+
+def _node(settings: Settings | None = None):
+    return _city(settings or _settings()).intersection("B2")  # regular 4-way, PAIRED phasing
+
+
+def _default_phase_id() -> str:
+    return _node().phases[0].id
+
+
+def _phase_serving(approach_ids: set[str]) -> str:
+    node = _node()
+    approach_of = {m.id: m.approach_id for m in node.movements}
+    for phase in node.phases:
+        served = {approach_of[mid] for mid in phase.movement_ids if mid in approach_of}
+        if approach_ids <= served:
+            return phase.id
+    raise AssertionError(f"no phase serves {approach_ids}")
 
 
 def _supervisor(settings: Settings | None = None, secret: str = "test-secret"):
@@ -36,14 +55,14 @@ def _view(
         intersection_id=intersection_id,
         controller_status=status,
         reported_at=reported_at,
-        current_phase_id="NS_THROUGH",
+        current_phase_id=_default_phase_id(),
         red_since=red_since or {},
     )
 
 
 def _preempt(
     intersection_id="B2",
-    phase_id="EW_THROUGH",
+    phase_id=None,
     hold_until=20_000,
     plan_version=1,
     idempotency_key="v1:B2:0001",
@@ -54,7 +73,10 @@ def _preempt(
         intersection_id=intersection_id,
         plan_version=plan_version,
         idempotency_key=idempotency_key,
-        payload={"phase_id": phase_id, "hold_until": hold_until},
+        payload={
+            "phase_id": phase_id if phase_id is not None else _default_phase_id(),
+            "hold_until": hold_until,
+        },
         created_at=0,
     )
 
@@ -129,10 +151,11 @@ def test_hold_too_long_rejected():
 def test_max_hold_projection_rejected():
     settings = _settings(lease_duration_s=120, max_hold_s=30)
     sup, clock = _supervisor(settings)
-    # EW has been red since t=0; requesting NS hold until t=40000 would
-    # leave EW red for 40s, exceeding the 30s max hold.
-    cmd = _preempt(phase_id="NS_THROUGH", hold_until=40_000)
-    view = _view(red_since={"E": 0, "W": 0})
+    ns_phase = _phase_serving({"B2-N-in", "B2-S-in"})
+    # E and W have been red since t=0; requesting the N/S phase held until
+    # t=40000 would leave them red for 40s, exceeding the 30s max hold.
+    cmd = _preempt(phase_id=ns_phase, hold_until=40_000)
+    view = _view(red_since={"B2-E-in": 0, "B2-W-in": 0})
     decision = sup.validate(cmd, view)
     assert not decision.approved
     assert decision.reason_code.value == "MAX_HOLD_EXCEEDED"
@@ -141,8 +164,9 @@ def test_max_hold_projection_rejected():
 def test_max_hold_projection_approved_when_within_budget():
     settings = _settings(lease_duration_s=120, max_hold_s=60)
     sup, clock = _supervisor(settings)
-    cmd = _preempt(phase_id="NS_THROUGH", hold_until=20_000)
-    view = _view(red_since={"E": 0, "W": 0})
+    ns_phase = _phase_serving({"B2-N-in", "B2-S-in"})
+    cmd = _preempt(phase_id=ns_phase, hold_until=20_000)
+    view = _view(red_since={"B2-E-in": 0, "B2-W-in": 0})
     decision = sup.validate(cmd, view)
     assert decision.approved
 

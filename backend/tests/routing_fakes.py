@@ -5,10 +5,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.city_loader import load_city
 from core.clock import SimTimeMs
 from core.config import Settings, load_settings
-from core.models import City, ControllerStatus, SensorMetric
+from core.general_city import GeneralCity
+from core.general_city_loader import load_general_city
+from core.models import ControllerStatus, SensorMetric
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 
@@ -18,8 +19,8 @@ def settings_for_tests(**overrides: object) -> Settings:
     return base.model_copy(update=overrides)
 
 
-def city_for(settings: Settings) -> City:
-    return load_city(CONFIG_DIR / "city.json", settings)
+def city_for(settings: Settings) -> GeneralCity:
+    return load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
 
 
 class FreeContext:

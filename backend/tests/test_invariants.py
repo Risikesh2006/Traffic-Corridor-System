@@ -2,7 +2,7 @@ from pathlib import Path
 
 from chaos.invariants import InvariantChecker
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from core.models import Command, CommandAck, CommandAckStatus, CommandType
 from core.security import sign
@@ -11,9 +11,12 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 SECRET = "test-secret"
 
 
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
+
+
 def _city():
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    return load_city(CONFIG_DIR / "city.json", settings), settings
+    return load_general_city(GRID_PATH, settings), settings
 
 
 def _setup():
@@ -41,7 +44,7 @@ def test_detects_max_hold_violation():
     city, settings, controllers, checker = _setup()
     controller = controllers["B2"]
     # Force an approach to appear red far longer than max_hold allows.
-    controller.state_machine.red_since["E"] = 0
+    controller.state_machine.red_since["B2-E-in"] = 0
     now = settings.max_hold_ms + settings.sim_tick_ms * 10
     controller.tick(now)
     checker.on_tick(now)
@@ -58,7 +61,7 @@ def test_detects_duplicate_execution():
         intersection_id="B2",
         plan_version=1,
         idempotency_key="v1:B2:0001",
-        payload={"phase_id": "NS_THROUGH", "hold_until": 10_000},
+        payload={"phase_id": controller.state_machine.current_phase_id, "hold_until": 10_000},
         created_at=0,
     )
     cmd = cmd.model_copy(update={"approval": sign(cmd, SECRET)})
@@ -86,7 +89,7 @@ def test_detects_invalid_approval_on_executed_command():
         intersection_id="B2",
         plan_version=1,
         idempotency_key="v1:B2:0002",
-        payload={"phase_id": "NS_THROUGH", "hold_until": 10_000},
+        payload={"phase_id": controller.state_machine.current_phase_id, "hold_until": 10_000},
         created_at=0,
         approval="forged-not-a-real-signature",
     )
@@ -117,7 +120,7 @@ def test_detects_plan_version_decrease():
 
 def test_assert_clean_raises_readable_report():
     city, settings, controllers, checker = _setup()
-    controllers["B2"].state_machine.red_since["E"] = 0
+    controllers["B2"].state_machine.red_since["B2-E-in"] = 0
     now = settings.max_hold_ms + settings.sim_tick_ms * 10
     controllers["B2"].tick(now)
     checker.on_tick(now)

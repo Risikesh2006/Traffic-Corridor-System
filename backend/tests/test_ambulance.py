@@ -1,14 +1,15 @@
 from pathlib import Path
 
 from controller.intersection_controller import IntersectionController
-from core.city_loader import load_city
 from core.config import Settings, load_settings
-from core.models import Priority, SignalPlanEntry
+from core.general_city_loader import load_general_city
+from core.models import Priority
 from core.rng import RngFactory
 from sim.ambulance import AmbulanceSim, AmbulanceState
 from sim.traffic import TrafficModel
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _settings(**overrides) -> Settings:
@@ -16,28 +17,41 @@ def _settings(**overrides) -> Settings:
     return base.model_copy(update=overrides)
 
 
+def _base_city():
+    return load_general_city(GRID_PATH, _settings())
+
+
+def _phase_serving_segment(city, node_id: str, segment_id: str) -> str:
+    """The phase id that serves the approach `segment_id` feeds at `node_id`."""
+    node = city.intersection(node_id)
+    approach = next(a for a in node.approaches if a.segment_id == segment_id)
+    approach_of = {m.id: m.approach_id for m in node.movements}
+    for phase in node.phases:
+        if any(approach_of.get(mid) == approach.id for mid in phase.movement_ids):
+            return phase.id
+    raise AssertionError(f"no phase at {node_id} serves segment {segment_id}")
+
+
 def _held_green_city(phase_id: str, held_node_id: str, green_s: float = 100_000):
-    settings = _settings()
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = _base_city()
     new_intersections = []
     for node in city.intersections:
         if node.id != held_node_id:
             new_intersections.append(node)
             continue
-        new_plan = [
-            SignalPlanEntry(
-                phase_id=e.phase_id,
-                green_ms=round(green_s * 1000) if e.phase_id == phase_id else e.green_ms,
-            )
-            for e in node.default_plan
-        ]
-        new_intersections.append(node.model_copy(update={"default_plan": new_plan}))
+        new_phases = tuple(
+            p.model_copy(update={"configured_green_ms": round(green_s * 1000)})
+            if p.id == phase_id
+            else p
+            for p in node.phases
+        )
+        new_intersections.append(node.model_copy(update={"phases": new_phases}))
     return city.model_copy(update={"intersections": new_intersections})
 
 
 def _build(city=None, settings: Settings | None = None, seed: int = 4417):
     settings = settings or _settings()
-    city = city or load_city(CONFIG_DIR / "city.json", settings)
+    city = city or _base_city()
     controllers = {n.id: IntersectionController(n) for n in city.intersections}
     rng = RngFactory(seed)
     traffic = TrafficModel(city, settings, rng, controllers)
@@ -51,15 +65,17 @@ def _advance_all(controllers: dict, now: int) -> None:
 
 
 def test_passes_on_green_with_no_queue():
-    # A2 -> B2 feeds B2's W approach. Hold EW_THROUGH green at B2.
-    city = _held_green_city("EW_THROUGH", "B2")
+    # A2 -> B2 feeds B2's W approach. Hold its serving phase green at B2.
+    base_city = _base_city()
+    ew_phase = _phase_serving_segment(base_city, "B2", "A2->B2")
+    city = _held_green_city(ew_phase, "B2")
     settings = _settings()
     city, controllers, traffic, amb_sim = _build(city, settings)
     now = 0
     _advance_all(controllers, now)
-    # Drive B2 onto EW_THROUGH.
+    # Drive B2 onto the W-serving phase.
     dt = 100
-    while controllers["B2"].state_machine.current_phase_id != "EW_THROUGH":
+    while controllers["B2"].state_machine.current_phase_id != ew_phase:
         now += dt
         _advance_all(controllers, now)
 
@@ -78,8 +94,15 @@ def test_passes_on_green_with_no_queue():
 
 
 def test_stops_at_red():
-    city, controllers, traffic, amb_sim = _build()
-    # B2 starts on NS_THROUGH (green), so EW (A2->B2's direction) is red.
+    # Hold a phase that does NOT serve B2's W approach, so A2->B2 is
+    # guaranteed red for the whole (slow, ~22.5s) approach — B2's own first
+    # cycle phase only lasts 16s, shorter than the ambulance's travel time.
+    base_city = _base_city()
+    w_phase = _phase_serving_segment(base_city, "B2", "A2->B2")
+    first_phase = base_city.intersection("B2").phases[0].id
+    assert first_phase != w_phase  # guaranteed current at t=0, and does not serve W
+    city = _held_green_city(first_phase, "B2")
+    city, controllers, traffic, amb_sim = _build(city)
     now = 0
     _advance_all(controllers, now)
     amb = amb_sim.add("AMB-1", ["A2", "B2", "C2"], Priority.P1, now)
@@ -97,7 +120,9 @@ def test_stops_at_red():
 
 
 def test_waits_for_queue_ahead_then_passes():
-    city = _held_green_city("EW_THROUGH", "B2")
+    base_city = _base_city()
+    ew_phase = _phase_serving_segment(base_city, "B2", "A2->B2")
+    city = _held_green_city(ew_phase, "B2")
     settings = _settings()
     city, controllers, traffic, amb_sim = _build(city, settings)
     segment_id = "A2->B2"
@@ -107,7 +132,7 @@ def test_waits_for_queue_ahead_then_passes():
 
     now = 0
     dt = 100
-    while controllers["B2"].state_machine.current_phase_id != "EW_THROUGH":
+    while controllers["B2"].state_machine.current_phase_id != ew_phase:
         now += dt
         _advance_all(controllers, now)
 
@@ -138,12 +163,14 @@ def test_waits_for_queue_ahead_then_passes():
 
 
 def test_arrives_and_tracks_travel_time():
-    city = _held_green_city("EW_THROUGH", "B2")
+    base_city = _base_city()
+    ew_phase = _phase_serving_segment(base_city, "B2", "A2->B2")
+    city = _held_green_city(ew_phase, "B2")
     settings = _settings()
     city, controllers, traffic, amb_sim = _build(city, settings)
     now = 0
     dt = 100
-    while controllers["B2"].state_machine.current_phase_id != "EW_THROUGH":
+    while controllers["B2"].state_machine.current_phase_id != ew_phase:
         now += dt
         _advance_all(controllers, now)
 

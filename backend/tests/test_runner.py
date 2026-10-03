@@ -3,17 +3,18 @@ from pathlib import Path
 
 import pytest
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from sim.engine import Simulation
 from sim.runner import RealtimeRunner
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+GRID_PATH = CONFIG_DIR / "cities" / "grid.city.json"
 
 
 def _simulation() -> Simulation:
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(GRID_PATH, settings)
     return Simulation(city, settings, seed=4417)
 
 

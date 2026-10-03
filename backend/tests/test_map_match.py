@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from core.city_loader import load_city
+from core.general_city_loader import load_general_city
 from core.config import load_settings
 from tracking.map_match import MapMatcher
 
@@ -12,7 +12,7 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 @pytest.fixture(scope="module")
 def matcher() -> MapMatcher:
     settings = load_settings(CONFIG_DIR / "settings.yaml")
-    city = load_city(CONFIG_DIR / "city.json", settings)
+    city = load_general_city(CONFIG_DIR / "cities" / "grid.city.json", settings)
     return MapMatcher(city, radius_m=settings.map_match_radius_m)
 
 
