@@ -27,6 +27,19 @@ class Direction(StrEnum):
 Movement = Direction
 
 
+class TurnType(StrEnum):
+    THROUGH = "THROUGH"
+    NEAR_SIDE = "NEAR_SIDE"
+    FAR_SIDE = "FAR_SIDE"
+    U_TURN = "U_TURN"
+
+
+class IntersectionKind(StrEnum):
+    SIGNALISED = "SIGNALISED"
+    UNSIGNALISED = "UNSIGNALISED"
+    ROUNDABOUT = "ROUNDABOUT"
+
+
 class ControllerStatus(StrEnum):
     ONLINE = "ONLINE"
     UNREACHABLE = "UNREACHABLE"

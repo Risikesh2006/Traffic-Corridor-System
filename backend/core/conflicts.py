@@ -21,16 +21,10 @@ orientation, and it works for any junction shape.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
-class TurnType(StrEnum):
-    THROUGH = "THROUGH"
-    NEAR_SIDE = "NEAR_SIDE"
-    FAR_SIDE = "FAR_SIDE"
-    U_TURN = "U_TURN"
+from core.models import TurnType
 
 
 class ArmGeometry(BaseModel):
