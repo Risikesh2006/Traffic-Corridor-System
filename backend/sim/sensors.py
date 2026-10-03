@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, SensorReading
+from core.models import City, SensorMetric, SensorReading
 from core.rng import RngFactory
 from sim.traffic import TrafficModel
 
@@ -30,7 +30,7 @@ class SimSensorFeed:
             r.id: (r.length_m / 1000.0) * r.lanes for r in city.roads
         }
         self._next_emit_at: dict[str, SimTimeMs] = {r.id: self._interval_ms for r in city.roads}
-        self._sequence: dict[str, int] = {r.id: 0 for r in city.roads}
+        self._sequence: dict[tuple[str, SensorMetric], int] = {}
         self._frozen: set[str] = set()
         self._pending: list[SensorReading] = []
 
@@ -56,17 +56,23 @@ class SimSensorFeed:
         vehicles = len(seg.queue) + len(seg.in_transit)
         km_lane = self._length_km_lane[segment_id]
         true_density = vehicles / km_lane if km_lane > 0 else 0.0
-        noise = self._noise_rng.gauss(0, self._noise_std)
-        value = max(0.0, true_density + noise)
+        self._append(segment_id, SensorMetric.DENSITY, true_density, at)
+        self._append(segment_id, SensorMetric.QUEUE_COUNT, float(len(seg.queue)), at)
 
-        self._sequence[segment_id] += 1
+    def _append(
+        self, segment_id: str, metric: SensorMetric, true_value: float, at: SimTimeMs
+    ) -> None:
+        noise = self._noise_rng.gauss(0, self._noise_std)
+        value = max(0.0, true_value + noise)
+        self._sequence[(segment_id, metric)] = self._sequence.get((segment_id, metric), 0) + 1
         self._pending.append(
             SensorReading(
                 source_id=f"sensor-{segment_id}",
                 road_id=segment_id,
+                metric=metric,
                 value=value,
                 timestamp=at,
-                sequence=self._sequence[segment_id],
+                sequence=self._sequence[(segment_id, metric)],
                 confidence=1.0,
             )
         )

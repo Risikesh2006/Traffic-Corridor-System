@@ -6,13 +6,20 @@ time at all. This is purely a UI/demo convenience.
 from __future__ import annotations
 
 import asyncio
+from typing import Protocol
 
 from core.clock import WallPacer
-from sim.engine import Simulation
+from core.config import Settings
+
+
+class Steppable(Protocol):
+    settings: Settings
+
+    def step(self) -> object: ...
 
 
 class RealtimeRunner:
-    def __init__(self, simulation: Simulation, speed_multiplier: float = 1.0) -> None:
+    def __init__(self, simulation: Steppable, speed_multiplier: float = 1.0) -> None:
         self.simulation = simulation
         self.pacer = WallPacer(speed_multiplier)
         self.paused = False

@@ -3,6 +3,7 @@ from pathlib import Path
 from controller.intersection_controller import IntersectionController
 from core.city_loader import load_city
 from core.config import Settings, load_settings
+from core.models import SensorMetric
 from core.rng import RngFactory
 from sim.sensors import SimSensorFeed
 from sim.traffic import TrafficModel
@@ -37,7 +38,7 @@ def test_emits_at_configured_interval():
     now += dt  # 5s: first emission due
     sensors.step(now)
     readings = sensors.drain_readings()
-    assert len(readings) == len(city.roads)
+    assert len(readings) == 2 * len(city.roads)  # density + queue count
     assert all(r.timestamp == 5000 for r in readings)
 
 
@@ -51,7 +52,9 @@ def test_sequence_numbers_increase():
         sensors.step(now)
     readings = sensors.drain_readings()
     segment_id = city.roads[0].id
-    seqs = [r.sequence for r in readings if r.road_id == segment_id]
+    seqs = [
+        r.sequence for r in readings if r.road_id == segment_id and r.metric == SensorMetric.DENSITY
+    ]
     assert seqs == sorted(seqs)
     assert seqs == list(range(1, len(seqs) + 1))
 
@@ -66,7 +69,11 @@ def test_noise_applied():
 
     now = 1000
     sensors.step(now)
-    readings = [r for r in sensors.drain_readings() if r.road_id == segment_id]
+    readings = [
+        r
+        for r in sensors.drain_readings()
+        if r.road_id == segment_id and r.metric == SensorMetric.DENSITY
+    ]
     assert len(readings) == 1
     road = city.segment(segment_id)
     true_density = 20 / ((road.length_m / 1000) * road.lanes)
@@ -85,7 +92,7 @@ def test_freeze_stops_readings():
     sensors.step(now)
     readings = sensors.drain_readings()
     assert all(r.road_id != segment_id for r in readings)
-    assert len(readings) == len(city.roads) - 1
+    assert len(readings) == 2 * (len(city.roads) - 1)
 
     sensors.unfreeze([segment_id])
     now += 1000

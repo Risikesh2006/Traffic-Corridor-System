@@ -17,7 +17,14 @@ from controller.intersection_controller import IntersectionController
 from controller.messages import Ping, Pong
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import Command, CommandAck, CommandAckStatus, ControllerStatus, SignalState
+from core.models import (
+    Command,
+    CommandAck,
+    CommandAckStatus,
+    ControllerStatus,
+    SignalState,
+    StatusReport,
+)
 from core.rng import RngFactory
 
 
@@ -45,6 +52,8 @@ class SimNetwork:
         self._now: SimTimeMs = 0
         self._pending_acks: list[CommandAck] = []
         self._pending_pongs: list[Pong] = []
+        self._uplink: list[tuple[SimTimeMs, int, str, object]] = []
+        self._status_inbox: list[StatusReport] = []
 
     # -- fault controls -----------------------------------------------------
 
@@ -74,7 +83,12 @@ class SimNetwork:
         by health checks and tests."""
         self._enqueue(intersection_id, Ping(message_id=f"ping-{self._seq}", sent_at=now))
 
-    def _enqueue(self, intersection_id: str, message: object) -> None:
+    def send_status(self, report: StatusReport) -> None:
+        """Up-link: a controller reports its state to central code. Subject to
+        the same latency, drops and duplicates as any other message."""
+        self._enqueue(report.intersection_id, report, uplink=True)
+
+    def _enqueue(self, intersection_id: str, message: object, uplink: bool = False) -> None:
         if intersection_id in self._disconnected:
             return
         if self._fault_rng.random() < self._drop_p.get(intersection_id, 0.0):
@@ -82,17 +96,22 @@ class SimNetwork:
         copies = 2 if self._fault_rng.random() < self._dup_p.get(intersection_id, 0.0) else 1
         base = self._base_latency_ms.get(intersection_id, self.settings.network_latency_base_ms)
         jitter = self._jitter_ms.get(intersection_id, self.settings.network_latency_jitter_ms)
+        target = self._uplink if uplink else self._queue
         for _ in range(copies):
             offset = self._latency_rng.uniform(-jitter, jitter) if jitter > 0 else 0.0
             delay_ms = max(0, round(base + offset))
             deliver_at = self._now + delay_ms
             self._seq += 1
-            heapq.heappush(self._queue, (deliver_at, self._seq, intersection_id, message))
+            heapq.heappush(target, (deliver_at, self._seq, intersection_id, message))
 
     # -- delivery ------------------------------------------------------
 
     def step(self, now: SimTimeMs) -> None:
         self._now = now
+        while self._uplink and self._uplink[0][0] <= now:
+            _, _, _, report = heapq.heappop(self._uplink)
+            assert isinstance(report, StatusReport)
+            self._status_inbox.append(report)
         while self._queue and self._queue[0][0] <= now:
             _, _, intersection_id, message = heapq.heappop(self._queue)
             controller = self._controllers.get(intersection_id)
@@ -124,6 +143,10 @@ class SimNetwork:
     def drain_acks(self) -> list[CommandAck]:
         acks, self._pending_acks = self._pending_acks, []
         return acks
+
+    def drain_status_reports(self) -> list[StatusReport]:
+        reports, self._status_inbox = self._status_inbox, []
+        return reports
 
     def drain_pongs(self) -> list[Pong]:
         pongs, self._pending_pongs = self._pending_pongs, []

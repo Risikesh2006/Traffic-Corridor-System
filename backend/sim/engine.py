@@ -11,7 +11,7 @@ import hashlib
 import json
 
 from controller.intersection_controller import IntersectionController
-from core.clock import SimClock, SimTimeMs
+from core.clock import DEFAULT_START_LABEL, SimClock, SimTimeMs
 from core.config import Settings
 from core.models import City, Priority
 from core.observer import SimulationObserver
@@ -26,12 +26,14 @@ from sim.vehicle_feed import SimVehicleFeed
 
 
 class Simulation:
-    def __init__(self, city: City, settings: Settings, seed: int) -> None:
+    def __init__(
+        self, city: City, settings: Settings, seed: int, start_wall_label: str = DEFAULT_START_LABEL
+    ) -> None:
         self.city = city
         self.settings = settings
         self.seed = seed
 
-        self.clock = SimClock()
+        self.clock = SimClock(start_wall_label=start_wall_label)
         self.rng = RngFactory(seed)
 
         self.controllers: dict[str, IntersectionController] = {
@@ -53,6 +55,9 @@ class Simulation:
         self.metrics = SimulationMetrics(city, self.controllers, self.traffic, self.ambulances)
 
         self.observers: list[SimulationObserver] = []
+        hb_ms = settings.heartbeat_interval_ms
+        self._status_next_at: dict[str, SimTimeMs] = dict.fromkeys(self.controllers, hb_ms)
+        self._status_seq: dict[str, int] = dict.fromkeys(self.controllers, 0)
         self._tick_count = 0
 
     def add_ambulance(self, vehicle_id: str, route: list[str], priority: Priority) -> SimAmbulance:
@@ -74,6 +79,7 @@ class Simulation:
 
         for node_id in sorted(self.controllers):  # 3. tick signal state machines
             self.controllers[node_id].tick(now)
+            self._send_due_status_report(node_id, now)
 
         self.traffic.discharge(now, dt_ms)  # 4. discharge queues on green
         self.traffic.move_arrivals_into_queues(now)  # 5. in-transit -> queue on arrival
@@ -91,6 +97,14 @@ class Simulation:
 
         self._tick_count += 1
         return now
+
+    def _send_due_status_report(self, node_id: str, now: SimTimeMs) -> None:
+        if now < self._status_next_at[node_id]:
+            return
+        self._status_seq[node_id] += 1
+        report = self.controllers[node_id].build_status_report(self._status_seq[node_id], now)
+        self.network.send_status(report)
+        self._status_next_at[node_id] += self.settings.heartbeat_interval_ms
 
     def run_for(self, duration_ms: int) -> None:
         ticks = duration_ms // self.settings.sim_tick_ms

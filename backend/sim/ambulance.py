@@ -25,7 +25,7 @@ from enum import StrEnum
 from controller.intersection_controller import IntersectionController
 from core.clock import SimTimeMs
 from core.config import Settings
-from core.models import City, Priority, SignalState
+from core.models import City, PresenceReading, Priority, SignalState
 from sim.topology import compute_approach_directions
 from sim.traffic import TrafficModel
 
@@ -80,6 +80,8 @@ class AmbulanceSim:
         self._controllers = controllers
         self._approach_dir = compute_approach_directions(city)
         self.ambulances: dict[str, SimAmbulance] = {}
+        self._presence: list[PresenceReading] = []
+        self._presence_seq = 0
 
     def add(
         self, vehicle_id: str, route: list[str], priority: Priority, now: SimTimeMs
@@ -161,6 +163,7 @@ class AmbulanceSim:
 
     def _handle_stop_line(self, amb: SimAmbulance, to_node: str, now: SimTimeMs) -> None:
         amb.route_index += 1
+        self._record_presence(amb, to_node, now)
         assert amb.current_segment_id is not None
         amb.section_times_ms[amb.current_segment_id] = now - amb._section_entered_at
 
@@ -194,6 +197,24 @@ class AmbulanceSim:
         seg = self.traffic.segments[segment_id]
         amb._wait_target_discharged = seg.cumulative_discharged + effective_wait
         self._begin_stop(amb, AmbulanceState.WAITING_FOR_QUEUE, now)
+
+    def drain_presence_readings(self) -> list[PresenceReading]:
+        readings, self._presence = self._presence, []
+        return readings
+
+    def _record_presence(self, amb: SimAmbulance, node_id: str, now: SimTimeMs) -> None:
+        self._presence_seq += 1
+        direction = self.city.approach_direction(f"{amb.route[amb.route_index - 1]}->{node_id}")
+        self._presence.append(
+            PresenceReading(
+                source_id=f"detector-{node_id}",
+                intersection_id=node_id,
+                approach_direction=direction,
+                vehicle_id=amb.vehicle_id,
+                timestamp=now,
+                sequence=self._presence_seq,
+            )
+        )
 
     def _begin_stop(self, amb: SimAmbulance, state: AmbulanceState, now: SimTimeMs) -> None:
         amb.state = state

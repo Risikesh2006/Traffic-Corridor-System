@@ -17,13 +17,16 @@ from controller.state_machine import IntersectionStateMachine, Transition
 from core.clock import SimTimeMs
 from core.events import Event, EventIdFactory, EventType
 from core.models import (
+    ActiveHoldInfo,
     Command,
     CommandAck,
     CommandAckStatus,
     CommandType,
+    ControllerStatus,
     Direction,
     Intersection,
     SignalState,
+    StatusReport,
 )
 from core.reasons import ReasonCode
 from core.security import verify
@@ -96,6 +99,29 @@ class IntersectionController:
             )
         self._enforce_max_hold(now)
         return transitions
+
+    def build_status_report(self, sequence: int, now: SimTimeMs) -> StatusReport:
+        sm = self._sm
+        status = (
+            ControllerStatus.FLASHING
+            if sm.state == SignalState.FLASHING_RED
+            else ControllerStatus.ONLINE
+        )
+        hold = self._active_hold
+        return StatusReport(
+            intersection_id=self.intersection_id,
+            sequence=sequence,
+            sent_at=now,
+            controller_status=status,
+            signal_state=sm.state,
+            current_phase_id=sm.current_phase_id,
+            state_started_at=sm.state_started_at,
+            red_since=dict(sm.red_since),
+            applied_plan_version=self._applied_plan_version,
+            active_hold=(
+                ActiveHoldInfo(phase_id=hold.phase_id, hold_until=hold.hold_until) if hold else None
+            ),
+        )
 
     def drain_events(self) -> list[Event]:
         events, self.events = self.events, []
