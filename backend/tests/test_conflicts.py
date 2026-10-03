@@ -24,19 +24,25 @@ def _mv(mid: str, approach: str, exit_: str, turn: TurnType = TurnType.THROUGH) 
 
 
 def _turned(mid: str, approach: str, exit_: str, arms: dict[str, ArmGeometry]) -> MovementGeometry:
-    turn = turn_type_for(
-        arms[approach].bearing_deg, arms[exit_].bearing_deg, "left", 30, 150
-    )
+    turn = turn_type_for(arms[approach].bearing_deg, arms[exit_].bearing_deg, "left", 30, 150)
     return _mv(mid, approach, exit_, turn)
 
 
 def _four_way() -> tuple[dict[str, ArmGeometry], list[MovementGeometry]]:
     arms = _arms(N=0, E=90, S=180, W=270)
     pairs = [
-        ("N-S", "N", "S"), ("N-E", "N", "E"), ("N-W", "N", "W"),
-        ("S-N", "S", "N"), ("S-W", "S", "W"), ("S-E", "S", "E"),
-        ("E-W", "E", "W"), ("E-S", "E", "S"), ("E-N", "E", "N"),
-        ("W-E", "W", "E"), ("W-N", "W", "N"), ("W-S", "W", "S"),
+        ("N-S", "N", "S"),
+        ("N-E", "N", "E"),
+        ("N-W", "N", "W"),
+        ("S-N", "S", "N"),
+        ("S-W", "S", "W"),
+        ("S-E", "S", "E"),
+        ("E-W", "E", "W"),
+        ("E-S", "E", "S"),
+        ("E-N", "E", "N"),
+        ("W-E", "W", "E"),
+        ("W-N", "W", "N"),
+        ("W-S", "W", "S"),
     ]
     return arms, [_turned(mid, a, e, arms) for mid, a, e in pairs]
 
@@ -141,7 +147,12 @@ def test_five_way_junction_crossings_are_geometric():
 
 def test_skewed_four_way_still_has_opposing_pairs_non_conflicting():
     arms = _arms(N=10, E=95, S=185, W=260)
-    movements = [_mv("N-S", "N", "S"), _mv("S-N", "S", "N"), _mv("E-W", "E", "W"), _mv("W-E", "W", "E")]
+    movements = [
+        _mv("N-S", "N", "S"),
+        _mv("S-N", "S", "N"),
+        _mv("E-W", "E", "W"),
+        _mv("W-E", "W", "E"),
+    ]
     pairs = conflict_pairs(movements, arms, RULES)
     assert not _pair(pairs, "N-S", "S-N")
     assert _pair(pairs, "N-S", "E-W")
@@ -173,7 +184,9 @@ def test_chords_sharing_an_endpoint_do_not_cross():
     b0=st.floats(min_value=0, max_value=359.9),
     b1=st.floats(min_value=0, max_value=359.9),
 )
-def test_chord_crossing_is_symmetric_and_irreflexive(a0: float, a1: float, b0: float, b1: float) -> None:
+def test_chord_crossing_is_symmetric_and_irreflexive(
+    a0: float, a1: float, b0: float, b1: float
+) -> None:
     assert chords_cross(a0, a1, b0, b1) == chords_cross(b0, b1, a0, a1)
     assert not chords_cross(a0, a1, a0, a1)
 
@@ -181,15 +194,12 @@ def test_chord_crossing_is_symmetric_and_irreflexive(a0: float, a1: float, b0: f
 @given(
     bearings=st.lists(st.floats(min_value=0, max_value=359.0), min_size=3, max_size=6, unique=True)
 )
-def test_random_junction_conflict_matrix_is_symmetric_and_irreflexive(bearings: list[float]) -> None:
+def test_random_junction_conflict_matrix_is_symmetric_and_irreflexive(
+    bearings: list[float],
+) -> None:
     arms = {f"A{i}": ArmGeometry(id=f"A{i}", bearing_deg=b) for i, b in enumerate(bearings)}
     ids = sorted(arms)
-    movements = [
-        _mv(f"{a}-{b}", a, b)
-        for a in ids
-        for b in ids
-        if a != b
-    ]
+    movements = [_mv(f"{a}-{b}", a, b) for a in ids for b in ids if a != b]
     for m in movements:
         assert not movement_conflict(m, m, arms, RULES)
     for a in movements:
