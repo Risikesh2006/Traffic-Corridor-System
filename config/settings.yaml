@@ -135,3 +135,12 @@ latency_full_replan_ms: 300
 latency_closure_to_commands_ms: 500
 latency_safety_validation_ms: 5
 latency_state_to_ui_ms: 250
+
+# Phase generation (Phase 6)
+through_tolerance_deg: 30
+uturn_threshold_deg: 150
+regular_bearing_tolerance_deg: 15
+cycle_target_s: 90
+cycle_min_s: 60
+cycle_max_s: 150
+phase_green_max_s: 60

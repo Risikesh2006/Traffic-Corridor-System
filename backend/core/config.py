@@ -96,6 +96,15 @@ class Settings(BaseModel):
         default=0.5, ge=0, le=1, description="probability of meeting red at a stop line"
     )
 
+    # --- Phase generation (core/phasing.py, Phase 6) ---
+    through_tolerance_deg: float = Field(default=30, gt=0, lt=90)
+    uturn_threshold_deg: float = Field(default=150, gt=90, le=180)
+    regular_bearing_tolerance_deg: float = Field(default=15, ge=0, lt=90)
+    cycle_target_s: float = Field(default=90, gt=0)
+    cycle_min_s: float = Field(default=60, gt=0)
+    cycle_max_s: float = Field(default=150, gt=0)
+    phase_green_max_s: float = Field(default=60, gt=0)
+
     # --- Routing (routing/, Phase 5) ---
     ambulance_speed_cap_mps: float = Field(default=20.0, gt=0)
     bpr_alpha: float = Field(default=0.15, ge=0)
@@ -312,6 +321,22 @@ class Settings(BaseModel):
     @property
     def eta_base_window_ms(self) -> int:
         return to_ms(self.eta_base_window_s)
+
+    @property
+    def cycle_target_ms(self) -> int:
+        return to_ms(self.cycle_target_s)
+
+    @property
+    def cycle_min_ms(self) -> int:
+        return to_ms(self.cycle_min_s)
+
+    @property
+    def cycle_max_ms(self) -> int:
+        return to_ms(self.cycle_max_s)
+
+    @property
+    def phase_green_max_ms(self) -> int:
+        return to_ms(self.phase_green_max_s)
 
     @property
     def reaction_delay_ms(self) -> int:

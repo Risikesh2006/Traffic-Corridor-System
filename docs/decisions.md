@@ -912,3 +912,14 @@ time, never safety, consistent with ADR-016.
 **Decision.** Add the general model beside the existing one (expand). Migrate one module per commit, keeping the full suite green after each (migrate). Delete the old model, its loader path and the temporary adapter once nothing depends on them (contract). A boundary test forbids the old names from reappearing. Safety tests may change how junctions are constructed, never what they assert.
 
 **Consequences.** Each commit is small and reversible. Progress is recorded in `docs/progress/phase-6.md`, so work can resume across sessions. The temporary adapter is a cost: it must be verified against the old grid exactly, and then removed.
+
+
+---
+
+## ADR-048: Signal plans generated from geometry and lane counts
+
+**Context.** Chennai signal timings are not publicly available, and OpenStreetMap signal data is incomplete. Every signalised junction still needs a conflict-free phase plan that serves every movement.
+
+**Decision.** `core/phasing.py` generates plans from junction geometry. PAIRED phasing is used only at regular four-way junctions, where opposing arms align within `regular_bearing_tolerance_deg` (15 degrees). Otherwise SPLIT phasing is used, one phase per approach. A paired plan is accepted only if it passes the same checks as split: every phase compatible under the conflict matrix, and every non-U-turn movement served. U-turns are excluded at signalised junctions, matching the default in ADR-046. Greens are shared by lane count, with a minimum of `min_green_s` and a maximum of `phase_green_max_s`, and the cycle is `cycle_target_s` clamped to `[cycle_min_s, cycle_max_s]`. Any violation raises `PhasingError`, so an invalid plan is never silently used.
+
+**Consequences.** Plans are reproducible and valid by construction, but they are not calibrated to any real signal. Road-class weighting is not yet used, because the junction model carries lanes only. That weighting is deferred to the importer stage, where road class is available. Any Chennai result must say the timings are generated, not observed.
