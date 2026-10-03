@@ -97,8 +97,14 @@ map_match_radius_m: 30
 deviation_fix_count: 3
 deviation_distance_m: 40
 deviation_duration_s: 5
-stop_line_margin_m: 5
+stop_line_margin_m: 15
 eta_base_window_s: 5
+dead_reckoning_growth_mps: 2.0
+eta_k_gps: 0.5
+eta_k_speed: 1.0
+eta_k_stale: 0.2
+eta_k_wait: 0.5
+eta_expected_red_fraction: 0.5
 
 latency_input_to_state_ms: 50
 latency_corridor_tick_ms: 100
