@@ -26,8 +26,8 @@ Branch: phase-6-real-city
 
 ## Not yet done
 - 6.1.3 phasing, 6.1.4 general grid + loader, 6.1.5 adapter, phasing/loader tests
-- Step 0 remainder: progress file (this file), CLAUDE.md "Multi-session work" protocol,
-  dependency install + ADR with versions, bootstrap commit.
+- Step 0 remainder: dependency install (osmnx, networkx, shapely, pyproj, geopandas) and an
+  ADR recording their versions. Deferred until the importer stage.
 
 ## Session log
 - Session 1: branch `phase-6-real-city` created; spec saved; progress file created; 6.1.1 model and conflict geometry committed. Stopped for session length.
