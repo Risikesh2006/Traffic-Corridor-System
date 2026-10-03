@@ -155,11 +155,16 @@ class WorldState:
                 return self.estimate(sid, SensorMetric.QUEUE_COUNT, now)
         return None
 
-    def _prior(self, segment_id: str, metric: SensorMetric, now: SimTimeMs) -> float:
+    def prior_value(self, segment_id: str, metric: SensorMetric, sim_time: SimTimeMs) -> float:
+        """Historical value for `segment_id` at simulated time `sim_time`
+        (time of day from the profile). Zero when no profile is loaded."""
         if self.profile is None:
             return 0.0
-        prior = self.profile.lookup(segment_id, now, self.clock)
+        prior = self.profile.lookup(segment_id, sim_time, self.clock)
         return prior.queue if metric == SensorMetric.QUEUE_COUNT else prior.density
+
+    def _prior(self, segment_id: str, metric: SensorMetric, now: SimTimeMs) -> float:
+        return self.prior_value(segment_id, metric, now)
 
     # -- intersection view (the supervisor's input, FR-WS / FH-06) -------
 
