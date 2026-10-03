@@ -145,9 +145,7 @@ def test_counters_accurate_across_mixed_stream():
     assert stats["out_of_order"] == 1
 
 
-@given(
-    sequences=st.lists(st.integers(min_value=0, max_value=20), min_size=1, max_size=50)
-)
+@given(sequences=st.lists(st.integers(min_value=0, max_value=20), min_size=1, max_size=50))
 def test_accepted_set_matches_deduplicated_in_order_shuffle(sequences: list[int]) -> None:
     """Feed a shuffled/duplicated stream of sequence numbers; the accepted
     set must equal exactly the strictly-increasing subsequence a

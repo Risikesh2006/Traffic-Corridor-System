@@ -91,7 +91,7 @@ class IngestionGateway:
     # -- sensor readings --------------------------------------------------
 
     def ingest_sensor_reading(self, reading: SensorReading) -> SensorReading | None:
-        source_id = f"{_SENSOR}:{reading.source_id}"
+        source_id = f"{_SENSOR}:{reading.source_id}:{reading.metric.value}"
         received_at = self.clock.now()
 
         clamped_timestamp, skewed = self._clamp_timestamp(reading.timestamp, received_at)
