@@ -17,6 +17,7 @@ from core.models import (
     ControllerStatus,
     GpsFix,
     PresenceReading,
+    RouteAck,
     SensorReading,
     StatusReport,
 )
@@ -79,4 +80,19 @@ class PresenceFeed(Protocol):
 
     def drain_presence_readings(self) -> list[PresenceReading]:
         """Return and clear all presence readings since the last call."""
+        ...
+
+
+class GuidanceLink(Protocol):
+    """Central -> vehicle route delivery.
+    Today: the simulated ambulance (sim/guidance.py).
+    Real world: the crew's navigation app over a data link.
+    """
+
+    def send_route(self, vehicle_id: str, route_version: int, intersections: list[str]) -> None:
+        """Push a full route (intersection IDs from the vehicle's current departure onward)."""
+        ...
+
+    def drain_acks(self) -> list[RouteAck]:
+        """Return and clear all route acknowledgements since the last call."""
         ...

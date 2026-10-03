@@ -18,6 +18,7 @@ from core.observer import SimulationObserver
 from core.rng import RngFactory
 from sim.ambulance import AmbulanceSim, SimAmbulance
 from sim.demand import DemandModel
+from sim.guidance import SimGuidance
 from sim.metrics import SimulationMetrics
 from sim.network import SimNetwork
 from sim.sensors import SimSensorFeed
@@ -52,6 +53,7 @@ class Simulation:
         self.ambulances = AmbulanceSim(city, settings, self.traffic, self.controllers)
         self.sensors = SimSensorFeed(city, settings, self.rng, self.traffic)
         self.vehicle_feed = SimVehicleFeed(settings, self.rng, self.ambulances)
+        self.guidance = SimGuidance(self.ambulances, settings, self.clock)
         self.metrics = SimulationMetrics(city, self.controllers, self.traffic, self.ambulances)
 
         self.observers: list[SimulationObserver] = []
@@ -76,6 +78,7 @@ class Simulation:
         now = self.clock.advance(dt_ms)  # 1. advance clock
 
         self.network.step(now)  # 2. deliver due network messages
+        self.guidance.step(now)  # 2b. deliver due route pushes and adopt them
 
         for node_id in sorted(self.controllers):  # 3. tick signal state machines
             self.controllers[node_id].tick(now)
@@ -85,6 +88,7 @@ class Simulation:
         self.traffic.move_arrivals_into_queues(now)  # 5. in-transit -> queue on arrival
 
         self.demand.step(now, dt_ms)  # 6. spawn new vehicles
+        self.traffic.apply_injections(now, dt_ms)  # 6b. injected congestion faults
 
         self.ambulances.step(now, dt_ms)  # 7. move / stop / pass
 

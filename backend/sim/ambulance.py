@@ -102,18 +102,22 @@ class AmbulanceSim:
         self.ambulances[vehicle_id] = amb
         return amb
 
-    def set_route(self, vehicle_id: str, new_route: list[str]) -> None:
-        """Replace the remaining route from the ambulance's current node
-        forward. `new_route` must start with the node the ambulance is
-        currently departing from (route[route_index])."""
+    def adopt_route(self, vehicle_id: str, full_route: list[str]) -> bool:
+        """Replace the route ahead of the ambulance with `full_route`.
+
+        The ambulance is committed to the segment it is on (departing
+        `route[route_index]`, heading for `route[route_index + 1]`), so the new
+        route must keep both of those nodes. Any divergence before that point is
+        already behind the vehicle and the route is refused (the caller reports
+        CANNOT_FOLLOW); the route is then left unchanged."""
         amb = self.ambulances[vehicle_id]
-        current_node = amb.route[amb.route_index]
-        if not new_route or new_route[0] != current_node:
-            raise ValueError("new_route must start at the ambulance's current node")
-        amb.route = amb.route[: amb.route_index] + new_route
-        if amb.current_segment_id is not None:
-            # Still finishing the current segment; next hop is new_route[1].
-            pass
+        committed = amb.route_index + 2
+        if amb.state == AmbulanceState.ARRIVED or len(full_route) < committed:
+            return False
+        if full_route[:committed] != amb.route[:committed]:
+            return False
+        amb.route = list(full_route)
+        return True
 
     def step(self, now: SimTimeMs, dt_ms: int) -> None:
         for vehicle_id in sorted(self.ambulances):

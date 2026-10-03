@@ -106,6 +106,29 @@ eta_k_stale: 0.2
 eta_k_wait: 0.5
 eta_expected_red_fraction: 0.5
 
+# Routing (Phase 5)
+ambulance_speed_cap_mps: 20.0
+bpr_alpha: 0.15
+bpr_beta: 4.0
+route_critical_density_fraction: 0.5
+route_x_max: 1.5
+congestion_sensitivity: 0.5
+driving_side: left
+allow_u_turns: false
+turn_penalty_through_s: 0
+turn_penalty_near_side_s: 3
+turn_penalty_far_side_s: 5
+uncertainty_weight: 0.2
+forecast_tau_s: 120
+route_alternative_overlap_max: 0.7
+route_alternative_budget_expansions: 400
+commitment_distance_m: 80
+commitment_time_s: 8
+min_route_dwell_s: 20
+eta_drift_fraction: 0.15
+reaction_delay_s: 2
+guidance_latency_s: 0.03
+
 latency_input_to_state_ms: 50
 latency_corridor_tick_ms: 100
 latency_full_replan_ms: 300

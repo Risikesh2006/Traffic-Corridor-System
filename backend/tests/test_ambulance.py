@@ -160,9 +160,17 @@ def test_arrives_and_tracks_travel_time():
     assert amb.arrival_time > amb.start_time
 
 
-def test_set_route_from_current_position():
+def test_adopt_route_keeps_committed_segment():
     city, controllers, traffic, amb_sim = _build()
     now = 0
     amb = amb_sim.add("AMB-1", ["A6", "A5", "A4"], Priority.P1, now)
-    amb_sim.set_route("AMB-1", ["A6", "B6", "B5"])
-    assert amb.route == ["A6", "B6", "B5"]
+    assert amb_sim.adopt_route("AMB-1", ["A6", "A5", "B4"]) is True
+    assert amb.route == ["A6", "A5", "B4"]
+
+
+def test_adopt_route_refused_when_divergence_is_committed():
+    city, controllers, traffic, amb_sim = _build()
+    now = 0
+    amb = amb_sim.add("AMB-1", ["A6", "A5", "A4"], Priority.P1, now)
+    assert amb_sim.adopt_route("AMB-1", ["A6", "B6", "B5"]) is False
+    assert amb.route == ["A6", "A5", "A4"]

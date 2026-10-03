@@ -102,6 +102,22 @@ class CommandAckStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class RouteAckStatus(StrEnum):
+    ADOPTED = "ADOPTED"
+    IGNORED_STALE_VERSION = "IGNORED_STALE_VERSION"
+    CANNOT_FOLLOW = "CANNOT_FOLLOW"
+
+
+class RouteAck(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    vehicle_id: str
+    route_version: int
+    status: RouteAckStatus
+    reason_code: str | None = None
+    timestamp: SimTimeMs
+
+
 class SensorMetric(StrEnum):
     DENSITY = "DENSITY"
     QUEUE_COUNT = "QUEUE_COUNT"

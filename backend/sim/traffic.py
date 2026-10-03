@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from dataclasses import dataclass
 
 from controller.intersection_controller import IntersectionController
 from core.clock import SimTimeMs
@@ -32,6 +33,15 @@ from core.config import Settings
 from core.models import City, SignalState
 from core.rng import RngFactory
 from sim.topology import TURN_MAP, compute_approach_directions, compute_exits
+
+
+@dataclass
+class _Injection:
+    segment_id: str
+    rate_per_s: float
+    start_ms: SimTimeMs
+    end_ms: SimTimeMs
+    credit: float = 0.0
 
 
 class SegmentTrafficState:
@@ -70,6 +80,7 @@ class TrafficModel:
         self.settings = settings
         self._controllers = controllers
         self._turning_rng = rng.stream("turning")
+        self._injections: list[_Injection] = []
         self._approach_dir = compute_approach_directions(city)
         self._exits = compute_exits(city)
 
@@ -96,6 +107,23 @@ class TrafficModel:
         seg.in_transit.append(now + travel_ms)
         self.total_spawned += 1
         return True
+
+    def inject_congestion(
+        self, segment_id: str, extra_vph: float, start_ms: SimTimeMs, end_ms: SimTimeMs
+    ) -> None:
+        """Fault control: add `extra_vph` vehicles/hour onto a segment between
+        start_ms and end_ms, on top of normal traffic (used to create a jam)."""
+        self.segments[segment_id]  # raises KeyError for unknown segments
+        self._injections.append(_Injection(segment_id, extra_vph / 3600.0, start_ms, end_ms))
+
+    def apply_injections(self, now: SimTimeMs, dt_ms: int) -> None:
+        for injection in self._injections:
+            if not injection.start_ms <= now < injection.end_ms:
+                continue
+            injection.credit += injection.rate_per_s * dt_ms / 1000.0
+            while injection.credit >= 1.0:
+                injection.credit -= 1.0
+                self.spawn(injection.segment_id, now)
 
     def queue_length(self, segment_id: str) -> int:
         return len(self.segments[segment_id].queue)

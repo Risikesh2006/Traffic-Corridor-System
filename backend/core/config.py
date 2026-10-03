@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -94,6 +95,29 @@ class Settings(BaseModel):
     eta_expected_red_fraction: float = Field(
         default=0.5, ge=0, le=1, description="probability of meeting red at a stop line"
     )
+
+    # --- Routing (routing/, Phase 5) ---
+    ambulance_speed_cap_mps: float = Field(default=20.0, gt=0)
+    bpr_alpha: float = Field(default=0.15, ge=0)
+    bpr_beta: float = Field(default=4.0, gt=0)
+    route_critical_density_fraction: float = Field(default=0.5, gt=0, le=1)
+    route_x_max: float = Field(default=1.5, gt=0)
+    congestion_sensitivity: float = Field(default=0.5, ge=0, le=1)
+    driving_side: Literal["left", "right"] = "left"
+    allow_u_turns: bool = False
+    turn_penalty_through_s: float = Field(default=0, ge=0)
+    turn_penalty_near_side_s: float = Field(default=3, ge=0)
+    turn_penalty_far_side_s: float = Field(default=5, ge=0)
+    uncertainty_weight: float = Field(default=0.2, ge=0)
+    forecast_tau_s: float = Field(default=120, gt=0)
+    route_alternative_overlap_max: float = Field(default=0.7, gt=0, le=1)
+    route_alternative_budget_expansions: int = Field(default=400, ge=1)
+    commitment_distance_m: float = Field(default=80, ge=0)
+    commitment_time_s: float = Field(default=8, ge=0)
+    min_route_dwell_s: float = Field(default=20, ge=0)
+    eta_drift_fraction: float = Field(default=0.15, gt=0)
+    reaction_delay_s: float = Field(default=2, ge=0)
+    guidance_latency_s: float = Field(default=0.03, ge=0)
 
     # --- Simulation ---
     sim_ticks_per_second: int = Field(default=10, ge=1)
@@ -288,6 +312,26 @@ class Settings(BaseModel):
     @property
     def eta_base_window_ms(self) -> int:
         return to_ms(self.eta_base_window_s)
+
+    @property
+    def reaction_delay_ms(self) -> int:
+        return to_ms(self.reaction_delay_s)
+
+    @property
+    def guidance_latency_ms(self) -> int:
+        return to_ms(self.guidance_latency_s)
+
+    @property
+    def commitment_time_ms(self) -> int:
+        return to_ms(self.commitment_time_s)
+
+    @property
+    def min_route_dwell_ms(self) -> int:
+        return to_ms(self.min_route_dwell_s)
+
+    @property
+    def forecast_tau_ms(self) -> int:
+        return to_ms(self.forecast_tau_s)
 
     def demand_rate_vph(self, hour_of_day: int, is_arterial: bool) -> float:
         """Entry rate (vehicles/hour) for one source, from the hour-of-day
